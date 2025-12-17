@@ -5,8 +5,45 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:wg="clr-namespace:Microsoft.Msagl.WpfGraphControl;assembly=Microsoft.Msagl.WpfGraphControl"
         mc:Ignorable="d"
-        Title="Makale Graf Analizi" Height="600" Width="800">
+        Title="Makale Graf Analiz ve Keşif Sistemi" 
+        Height="800" Width="1200" 
+        WindowStartupLocation="CenterScreen"
+        Background="#F0F2F5">
+    
     <Grid>
-        <wg:AutomaticGraphLayoutControl x:Name="GraphViewer"/>
+        <wg:AutomaticGraphLayoutControl x:Name="GraphViewer" 
+                                       IsHitTestVisible="True" 
+                                       Margin="0,0,0,0" />
+
+        <Border VerticalAlignment="Bottom" HorizontalAlignment="Right" 
+                Margin="20" Padding="15" 
+                Background="#EE2C3E50" 
+                CornerRadius="10" 
+                BorderBrush="#34495E" 
+                BorderThickness="1">
+            <StackPanel Width="220">
+                <TextBlock Text="NAVİGASYON" Foreground="#ECF0F1" FontWeight="Bold" FontSize="14" Margin="0,0,0,10" HorizontalAlignment="Center"/>
+                
+                <Separator Background="#34495E" Margin="0,0,0,10"/>
+                
+                <TextBlock Text="F1: Özet (Top 50)" Foreground="#BDC3C7" Margin="0,2"/>
+                <TextBlock Text="F2: Orta (Top 150)" Foreground="#BDC3C7" Margin="0,2"/>
+                <TextBlock Text="F3: Tüm Detaylar" Foreground="#BDC3C7" Margin="0,2"/>
+                <TextBlock Text="F4: En Çok Atıf Alan 5" Foreground="Gold" FontWeight="Bold" Margin="0,5"/>
+                <TextBlock Text="F5: Veriyi Yenile" Foreground="#BDC3C7" Margin="0,2"/>
+                
+                <Separator Background="#34495E" Margin="10,10"/>
+                
+                <TextBlock Text="ETKİLEŞİM" Foreground="#ECF0F1" FontWeight="Bold" Margin="0,0,0,5"/>
+                <TextBlock Text="• Düğme Sol Tık: Genişlet" Foreground="LightGreen" FontWeight="Medium"/>
+                <TextBlock Text="• Mouse Tekerleği: Zoom" Foreground="#BDC3C7"/>
+                <TextBlock Text="• Sağ Tık Sürükle: Gezinti" Foreground="#BDC3C7"/>
+            </StackPanel>
+        </Border>
+
+        <Border VerticalAlignment="Top" HorizontalAlignment="Stretch" Height="30" Background="#AA34495E">
+            <TextBlock x:Name="StatusText" Text="Sistem Hazır. Veri yüklemek için bekleyin..." 
+                       Foreground="White" VerticalAlignment="Center" Margin="15,0" FontSize="12"/>
+        </Border>
     </Grid>
 </Window>
