@@ -1,0 +1,23 @@
+# --- Build (Derleme) Çıktıları ---
+[Bb]in/
+[Oo]bj/
+
+# --- Visual Studio & VS Code Ayarları ---
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+*.sln.docstates
+
+# --- Geçici Dosyalar ---
+*.log
+*.tmp
+*.cache
+
+# --- OS (İşletim Sistemi) Dosyaları ---
+.DS_Store
+Thumbs.db
+
+# --- Yayınlama (Publish) Klasörleri ---
+**/publish/
