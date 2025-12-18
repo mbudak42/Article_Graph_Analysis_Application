@@ -6,19 +6,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <NoWarn>$(NoWarn);NU1701</NoWarn>
   </PropertyGroup>
-
-  <ItemGroup>
-    <None Update="Assets\DataJson.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="AutomaticGraphLayout" Version="1.1.12" />
-    <PackageReference Include="AutomaticGraphLayout.Drawing" Version="1.1.12" />
-    <PackageReference Include="AutomaticGraphLayout.WpfGraphControl" Version="1.1.12" />
-  </ItemGroup>
 
 </Project>
