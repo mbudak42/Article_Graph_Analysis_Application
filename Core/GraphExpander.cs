@@ -4,8 +4,8 @@ namespace Article_Graph_Analysis_Application.Core
 {
     public class GraphExpander
     {
-        private Graph mainGraph;
-        private Graph displayGraph;
+        private readonly Graph mainGraph;
+        private readonly Graph displayGraph;
 
         public GraphExpander(Graph mainGraph, Graph displayGraph)
         {
@@ -15,37 +15,36 @@ namespace Article_Graph_Analysis_Application.Core
 
         public void ExpandWithHCore(List<GraphNode> hCoreNodes)
         {
-            foreach (var node in hCoreNodes)
+            var nodesToAdd = new List<GraphNode>();
+            
+            foreach (var hCoreNode in hCoreNodes.ToList())
             {
-                if (!displayGraph.ContainsNode(node.Id))
+                if (!displayGraph.ContainsNode(hCoreNode.Id))
                 {
-                    displayGraph.AddNode(node);
+                    nodesToAdd.Add(hCoreNode);
                 }
             }
 
-            var allDisplayNodeIds = new HashSet<string>(displayGraph.Nodes.Keys);
-
-            foreach (var nodeId in allDisplayNodeIds)
+            foreach (var node in nodesToAdd)
             {
-                var mainNode = mainGraph.GetNode(nodeId);
-                if (mainNode == null) continue;
+                displayGraph.AddNode(node);
+            }
 
-                foreach (var outNode in mainNode.OutgoingNodes)
+            foreach (var node in nodesToAdd)
+            {
+                foreach (var outgoing in node.OutgoingNodes)
                 {
-                    if (allDisplayNodeIds.Contains(outNode.Id))
+                    if (displayGraph.ContainsNode(outgoing.Id))
                     {
-                        var displaySource = displayGraph.GetNode(nodeId);
-                        var displayTarget = displayGraph.GetNode(outNode.Id);
+                        displayGraph.AddEdge(node, outgoing);
+                    }
+                }
 
-                        if (displaySource == null || displayTarget == null) continue;
-
-                        bool edgeExists = displayGraph.Edges.Any(e => 
-                            e.Source.Id == displaySource.Id && e.Target.Id == displayTarget.Id);
-
-                        if (!edgeExists)
-                        {
-                            displayGraph.AddEdge(displaySource, displayTarget);
-                        }
+                foreach (var incoming in node.IncomingNodes)
+                {
+                    if (displayGraph.ContainsNode(incoming.Id))
+                    {
+                        displayGraph.AddEdge(incoming, node);
                     }
                 }
             }
