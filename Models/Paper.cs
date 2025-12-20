@@ -1,24 +1,21 @@
-using System.Collections.Generic;
-
 namespace Article_Graph_Analysis_Application.Models
 {
-    public class Article
+    public class Paper
     {
-        public string? Id { get; set; }
-        public string? Title { get; set; }
-        
-        // string yerine int yapıyoruz
-        public int Year { get; set; } 
-        
-        public List<string> Authors { get; set; }
-        public List<string> ReferencedWorks { get; set; }
-        public int CitationCount { get; set; }
+        // === JSON ALANLARI ===
+        public string Id { get; set; } = string.Empty;
+        public List<string> Authors { get; set; } = new();
+        public string Title { get; set; } = string.Empty;
+        public int Year { get; set; }
 
-        public Article()
-        {
-            Authors = new List<string>();
-            ReferencedWorks = new List<string>();
-            CitationCount = 0;
-        }
+        // Out-degree
+        public List<string> ReferencedWorks { get; set; } = new();
+
+        // In-degree (duplicate engelli)
+        public HashSet<string> CitedBy { get; set; } = new();
+
+        // === HESAPLANABİLİR ===
+        public int OutCitationCount => ReferencedWorks.Count;
+        public int InCitationCount => CitedBy.Count;
     }
 }
