@@ -1,137 +1,136 @@
-using System;
-using System.Linq;
-using Article_Graph_Analysis_Application.Core;
-using Article_Graph_Analysis_Application.Core.KCore;
 using Article_Graph_Analysis_Application.Models;
-using Article_Graph_Analysis_Application.Visualization;
-using MsaglGraph = Microsoft.Msagl.Drawing.Graph;
-using MsaglNode = Microsoft.Msagl.Drawing.Node;
-using MsaglEdge = Microsoft.Msagl.Drawing.Edge;
 using Microsoft.Msagl.Drawing;
+using Microsoft.Msagl.WpfGraphControl;
+using System.Windows;
+using System.Windows.Threading;
+using CoreGraph = Article_Graph_Analysis_Application.Core.Graph;
+using MsaglGraph = Microsoft.Msagl.Drawing.Graph;
 
 namespace Article_Graph_Analysis_Application.Visualization.Msagl
 {
     public class MsaglGraphController
     {
-        private readonly NodeStyleService _styleService;
+        private GraphViewer viewer;
+        private CoreGraph? displayGraph;
+        private HashSet<string> clickedNodes;
+        private HashSet<string> currentHCoreNodes;
 
-        public MsaglGraphController(NodeStyleService styleService)
+        public MsaglGraphController(GraphViewer viewer)
         {
-            _styleService = styleService ?? throw new ArgumentNullException(nameof(styleService));
+            this.viewer = viewer;
+            this.clickedNodes = new HashSet<string>();
+            this.currentHCoreNodes = new HashSet<string>();
         }
 
-        public MsaglGraph BuildMsaglGraph(Core.Graph domainGraph)
+        public void DrawGraph(CoreGraph graph)
         {
-            if (domainGraph == null) throw new ArgumentNullException(nameof(domainGraph));
+            displayGraph = graph;
+            var msaglGraph = new MsaglGraph();
 
-            var msGraph = new MsaglGraph("ArticleGraph");
-
-            foreach (var node in domainGraph.GetAllNodes())
+            foreach (var node in graph.Nodes.Values)
             {
-                var msNode = msGraph.AddNode(node.Id);
-                ApplyNodeStyle(msNode, node);
+                var msaglNode = msaglGraph.AddNode(node.Id);
+                msaglNode.LabelText = node.Id;
+
+                int citationCount = node.GetInDegree();
+                NodeStyleService.ApplyNodeStyle(msaglNode, GraphColorPalette.DefaultNodeColor, citationCount);
             }
 
-            foreach (var edge in domainGraph.GetAllEdges())
+            foreach (var edge in graph.Edges)
             {
-                var msEdge = msGraph.AddEdge(edge.Source.Id, edge.Target.Id);
-                ApplyEdgeStyle(msEdge, edge.Type);
+                var msaglEdge = msaglGraph.AddEdge(edge.Source.Id, edge.Target.Id);
+                NodeStyleService.ApplyEdgeStyle(msaglEdge, Color.Black, 1.0);
             }
 
-            return msGraph;
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                viewer.Graph = msaglGraph;
+            }, DispatcherPriority.Render);
         }
 
-        public MsaglGraph BuildMsaglGraphWithKCore(Core.Graph domainGraph, KCoreResult kCoreResult)
+        public void HighlightHCore(List<GraphNode> hCoreNodes, string clickedNodeId)
         {
-            if (domainGraph == null) throw new ArgumentNullException(nameof(domainGraph));
-            if (kCoreResult == null) throw new ArgumentNullException(nameof(kCoreResult));
+            if (viewer.Graph == null || displayGraph == null) return;
 
-            var msGraph = new MsaglGraph("ArticleGraph");
-            var kCoreNodeSet = kCoreResult.NodeIds.ToHashSet();
-            var kCoreEdgeSet = kCoreResult.Edges.Select(e => (e.Source, e.Target)).ToHashSet();
+            clickedNodes.Add(clickedNodeId);
 
-            foreach (var node in domainGraph.GetAllNodes())
+            var newHCoreIds = hCoreNodes.Select(n => n.Id).Where(id => !currentHCoreNodes.Contains(id)).ToHashSet();
+            currentHCoreNodes.UnionWith(hCoreNodes.Select(n => n.Id));
+
+            Application.Current.Dispatcher.Invoke(() =>
             {
-                var msNode = msGraph.AddNode(node.Id);
-                
-                if (kCoreNodeSet.Contains(node.Id))
+                foreach (Node node in viewer.Graph.Nodes)
                 {
-                    msNode.Attr.FillColor = GraphColorPalette.KCoreNode;
-                    msNode.Attr.LineWidth = 3;
-                }
-                else
-                {
-                    ApplyNodeStyle(msNode, node);
-                }
-            }
+                    var graphNode = displayGraph.GetNode(node.Id);
+                    if (graphNode == null) continue;
 
-            foreach (var edge in domainGraph.GetAllEdges())
-            {
-                var msEdge = msGraph.AddEdge(edge.Source.Id, edge.Target.Id);
-                
-                if (edge.Type == EdgeType.Citation && 
-                    kCoreEdgeSet.Contains((edge.Source.Id, edge.Target.Id)))
-                {
-                    msEdge.Attr.Color = GraphColorPalette.KCoreEdge;
-                    msEdge.Attr.LineWidth = 3;
-                }
-                else
-                {
-                    ApplyEdgeStyle(msEdge, edge.Type);
-                }
-            }
+                    int citationCount = graphNode.GetInDegree();
 
-            return msGraph;
+                    if (node.Id == clickedNodeId)
+                    {
+                        NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.ClickedNodeColor, citationCount);
+                    }
+                    else if (newHCoreIds.Contains(node.Id))
+                    {
+                        NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.NewHCoreNodeColor, citationCount);
+                    }
+                    else if (currentHCoreNodes.Contains(node.Id))
+                    {
+                        NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.HCoreNodeColor, citationCount);
+                    }
+                    else if (clickedNodes.Contains(node.Id))
+                    {
+                        NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.ClickedNodeColor, citationCount);
+                    }
+                }
+
+                viewer.Invalidate();
+            }, DispatcherPriority.Render);
         }
 
-        private void ApplyNodeStyle(MsaglNode msNode, GraphNode domainNode)
+        public void HighlightKCore(HashSet<string> kCoreNodeIds)
         {
-            var style = _styleService.GetNodeStyle(domainNode);
+            if (viewer.Graph == null || displayGraph == null) return;
 
-            msNode.Attr.Shape = Shape.Box;
-            msNode.Attr.LineWidth = 1;
-
-            switch (style)
+            Application.Current.Dispatcher.Invoke(() =>
             {
-                case NodeVisualStyle.Selected:
-                    msNode.Attr.FillColor = GraphColorPalette.SelectedNode;
-                    msNode.Attr.LineWidth = 3;
-                    break;
+                foreach (Node node in viewer.Graph.Nodes)
+                {
+                    var graphNode = displayGraph.GetNode(node.Id);
+                    if (graphNode == null) continue;
 
-                case NodeVisualStyle.NewlyAdded:
-                    msNode.Attr.FillColor = GraphColorPalette.NewlyAddedNode;
-                    msNode.Attr.LineWidth = 2;
-                    break;
+                    int citationCount = graphNode.GetInDegree();
 
-                default:
-                    msNode.Attr.FillColor = GraphColorPalette.DefaultNode;
-                    break;
-            }
+                    if (kCoreNodeIds.Contains(node.Id))
+                    {
+                        NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.KCoreNodeColor, citationCount);
+                    }
+                    else
+                    {
+                        NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.DefaultNodeColor, citationCount);
+                    }
+                }
 
-            msNode.LabelText = domainNode.Id;
+                foreach (Edge edge in viewer.Graph.Edges)
+                {
+                    if (kCoreNodeIds.Contains(edge.Source) && kCoreNodeIds.Contains(edge.Target))
+                    {
+                        NodeStyleService.ApplyEdgeStyle(edge, GraphColorPalette.KCoreNodeColor, 2.0);
+                    }
+                    else
+                    {
+                        NodeStyleService.ApplyEdgeStyle(edge, Color.LightGray, 1.0);
+                    }
+                }
+
+                viewer.Invalidate();
+            }, DispatcherPriority.Render);
         }
 
-        private void ApplyEdgeStyle(MsaglEdge msEdge, EdgeType type)
+        public void ResetHighlights()
         {
-            var style = _styleService.GetEdgeStyle(type);
-
-            msEdge.Attr.LineWidth = 1.5;
-            msEdge.Attr.ArrowheadAtTarget = ArrowStyle.Normal;
-
-            switch (style)
-            {
-                case EdgeVisualStyle.Citation:
-                    msEdge.Attr.Color = GraphColorPalette.CitationEdge;
-                    break;
-
-                case EdgeVisualStyle.Sequential:
-                    msEdge.Attr.Color = GraphColorPalette.SequentialEdge;
-                    break;
-
-                default:
-                    msEdge.Attr.Color = GraphColorPalette.DefaultEdge;
-                    break;
-            }
+            clickedNodes.Clear();
+            currentHCoreNodes.Clear();
         }
     }
 }

@@ -1,56 +1,24 @@
-using Article_Graph_Analysis_Application.Models;
+using Microsoft.Msagl.Drawing;
 
 namespace Article_Graph_Analysis_Application.Visualization.Msagl
 {
-    /// <summary>
-    /// GraphNode için görsel stil bilgisini üretir.
-    /// MSAGL veya başka bir çizim kütüphanesinden BAĞIMSIZDIR.
-    /// </summary>
     public class NodeStyleService
     {
-        public NodeVisualStyle GetNodeStyle(GraphNode node)
+        public static void ApplyNodeStyle(Node node, Color color, int citationCount)
         {
-            if (node.IsSelected)
-            {
-                return NodeVisualStyle.Selected;
-            }
-
-            if (node.IsNewlyAdded)
-            {
-                return NodeVisualStyle.NewlyAdded;
-            }
-
-            return NodeVisualStyle.Default;
+            node.Attr.FillColor = color;
+            node.Attr.Shape = Shape.Circle;
+            
+            int size = Math.Max(20, Math.Min(80, 20 + citationCount * 2));
+            node.Attr.LabelMargin = size / 4;
+            
+            node.Label.FontSize = Math.Max(8, Math.Min(16, 8 + citationCount / 5));
         }
 
-        public EdgeVisualStyle GetEdgeStyle(EdgeType type)
+        public static void ApplyEdgeStyle(Edge edge, Color color, double width = 1.0)
         {
-            return type switch
-            {
-                EdgeType.Citation => EdgeVisualStyle.Citation,
-                EdgeType.Sequential => EdgeVisualStyle.Sequential,
-                _ => EdgeVisualStyle.Default
-            };
+            edge.Attr.Color = color;
+            edge.Attr.LineWidth = width;
         }
-    }
-
-    /// <summary>
-    /// UI bağımsız node stil türleri
-    /// </summary>
-    public enum NodeVisualStyle
-    {
-        Default,
-        Selected,
-        NewlyAdded
-    }
-
-    /// <summary>
-    /// UI bağımsız edge stil türleri
-    /// </summary>
-    public enum EdgeVisualStyle
-    {
-        Default,
-        Citation,
-        Sequential
     }
 }

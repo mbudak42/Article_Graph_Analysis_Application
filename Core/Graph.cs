@@ -1,133 +1,69 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Article_Graph_Analysis_Application.Models;
 
 namespace Article_Graph_Analysis_Application.Core
 {
-    /// <summary>
-    /// Yönlü graf yapısını temsil eder.
-    /// Düğümler: GraphNode (Paper sarmalayıcı)
-    /// Kenarlar: GraphEdge
-    /// </summary>
     public class Graph
     {
-        private readonly Dictionary<string, GraphNode> _nodes;
-        private readonly List<GraphEdge> _edges;
+        public Dictionary<string, GraphNode> Nodes { get; set; }
+        public List<GraphEdge> Edges { get; set; }
 
         public Graph()
         {
-            _nodes = new Dictionary<string, GraphNode>();
-            _edges = new List<GraphEdge>();
+            Nodes = new Dictionary<string, GraphNode>();
+            Edges = new List<GraphEdge>();
         }
-
-        // =========================
-        // NODE İŞLEMLERİ
-        // =========================
 
         public void AddNode(GraphNode node)
         {
-            if (!_nodes.ContainsKey(node.Id))
+            if (!Nodes.ContainsKey(node.Id))
             {
-                _nodes.Add(node.Id, node);
+                Nodes[node.Id] = node;
             }
         }
 
-        public bool ContainsNode(string id)
+        public void AddEdge(GraphNode source, GraphNode target, bool isDirected = true)
         {
-            return _nodes.ContainsKey(id);
-        }
-
-        public GraphNode? GetNode(string id)
-        {
-            _nodes.TryGetValue(id, out var node);
-            return node;
-        }
-
-        public IReadOnlyCollection<GraphNode> GetAllNodes()
-        {
-            return _nodes.Values;
-        }
-
-        // =========================
-        // EDGE İŞLEMLERİ
-        // =========================
-
-        public void AddEdge(
-            string sourceId,
-            string targetId,
-            EdgeType type = EdgeType.Citation,
-            bool isDirected = true)
-        {
-            var source = GetNode(sourceId);
-            var target = GetNode(targetId);
-
-            if (source == null || target == null)
-                return;
-
-            bool exists = _edges.Any(e =>
-                e.Source.Id == sourceId &&
-                e.Target.Id == targetId &&
-                e.Type == type);
-
-            if (!exists)
+            if (!source.OutgoingNodes.Contains(target))
             {
-                _edges.Add(new GraphEdge(source, target, type, isDirected));
+                source.OutgoingNodes.Add(target);
             }
+            if (!target.IncomingNodes.Contains(source))
+            {
+                target.IncomingNodes.Add(source);
+            }
+
+            var edge = new GraphEdge(source, target, isDirected);
+            Edges.Add(edge);
         }
 
-        public IReadOnlyCollection<GraphEdge> GetAllEdges()
+        public bool ContainsNode(string nodeId)
         {
-            return _edges;
+            return Nodes.ContainsKey(nodeId);
         }
 
-        // =========================
-        // DERECE HESAPLARI
-        // =========================
-
-        public int GetOutDegree(string nodeId)
+        public GraphNode? GetNode(string nodeId)
         {
-            return _edges.Count(e => e.Source.Id == nodeId);
+            return Nodes.ContainsKey(nodeId) ? Nodes[nodeId] : null;
         }
 
-        public int GetInDegree(string nodeId)
+        public int GetTotalNodes()
         {
-            return _edges.Count(e => e.Target.Id == nodeId);
+            return Nodes.Count;
         }
 
-        public IEnumerable<GraphNode> GetOutgoingNeighbors(string nodeId)
+        public int GetTotalEdges()
         {
-            return _edges
-                .Where(e => e.Source.Id == nodeId)
-                .Select(e => e.Target);
+            return Edges.Count;
         }
-
-        public IEnumerable<GraphNode> GetIncomingNeighbors(string nodeId)
-        {
-            return _edges
-                .Where(e => e.Target.Id == nodeId)
-                .Select(e => e.Source);
-        }
-
-        // =========================
-        // İSTATİSTİK DESTEK
-        // =========================
-
-        public int TotalNodeCount => _nodes.Count;
-        public int TotalEdgeCount => _edges.Count;
 
         public GraphNode? GetMostCitedNode()
         {
-            return _nodes.Values
-                .OrderByDescending(n => GetInDegree(n.Id))
-                .FirstOrDefault();
+            return Nodes.Values.OrderByDescending(n => n.GetInDegree()).FirstOrDefault();
         }
 
         public GraphNode? GetMostReferencingNode()
         {
-            return _nodes.Values
-                .OrderByDescending(n => GetOutDegree(n.Id))
-                .FirstOrDefault();
+            return Nodes.Values.OrderByDescending(n => n.GetOutDegree()).FirstOrDefault();
         }
     }
 }

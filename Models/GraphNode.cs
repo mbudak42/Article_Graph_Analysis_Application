@@ -1,46 +1,28 @@
-using Article_Graph_Analysis_Application.Models;
-
 namespace Article_Graph_Analysis_Application.Models
 {
     public class GraphNode
     {
-        // === TEMEL REFERANS ===
-        public Paper Paper { get; }
+        public string Id { get; set; }
+        public Paper Paper { get; set; }
+        public List<GraphNode> OutgoingNodes { get; set; }
+        public List<GraphNode> IncomingNodes { get; set; }
 
-        // MSAGL / graf için tekil düğüm anahtarı
-        public string Id => Paper.Id;
-
-        // === UI DURUM BİLGİLERİ ===
-        public bool IsSelected { get; set; }
-        public bool IsNewlyAdded { get; set; }
-
-        // === TOOLTIP (LAZY + CACHE) ===
-        private string? _tooltipCache;
-
-        public string TooltipText =>
-            _tooltipCache ??= BuildTooltip();
-
-        private string BuildTooltip()
-        {
-            return
-                $"ID: {Paper.Id}\n" +
-                $"Title: {Paper.Title}\n" +
-                $"Authors: {string.Join(", ", Paper.Authors)}\n" +
-                $"Year: {Paper.Year}\n" +
-                $"Citations: {Paper.InCitationCount}";
-        }
-
-        // === TOOLTIP GÜNCELLEME ===
-        // Paper içeriği değiştiğinde çağrılır
-        public void InvalidateTooltip()
-        {
-            _tooltipCache = null;
-        }
-
-        // === CONSTRUCTOR ===
         public GraphNode(Paper paper)
         {
+            Id = paper.Id;
             Paper = paper;
+            OutgoingNodes = new List<GraphNode>();
+            IncomingNodes = new List<GraphNode>();
+        }
+
+        public int GetInDegree()
+        {
+            return IncomingNodes.Count;
+        }
+
+        public int GetOutDegree()
+        {
+            return OutgoingNodes.Count;
         }
     }
 }

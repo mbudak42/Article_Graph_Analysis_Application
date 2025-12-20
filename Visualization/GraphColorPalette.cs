@@ -4,14 +4,11 @@ namespace Article_Graph_Analysis_Application.Visualization
 {
     public static class GraphColorPalette
     {
-        public static Color DefaultNode => Color.LightGray;
-        public static Color SelectedNode => Color.LightGoldenrodYellow;
-        public static Color NewlyAddedNode => Color.LightBlue;
-        public static Color KCoreNode => Color.LightCoral;
-        
-        public static Color CitationEdge => Color.Black;
-        public static Color SequentialEdge => Color.Green;
-        public static Color KCoreEdge => Color.Red;
-        public static Color DefaultEdge => Color.Gray;
+        public static Color InitialNodeColor = Color.LightGreen;
+        public static Color ClickedNodeColor = Color.Red;
+        public static Color HCoreNodeColor = Color.Orange;
+        public static Color NewHCoreNodeColor = Color.LightBlue;
+        public static Color KCoreNodeColor = Color.Purple;
+        public static Color DefaultNodeColor = Color.LightGray;
     }
 }

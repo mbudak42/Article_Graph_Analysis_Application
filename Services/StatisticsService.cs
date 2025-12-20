@@ -1,74 +1,42 @@
-using System;
-using System.Linq;
 using Article_Graph_Analysis_Application.Core;
-using Article_Graph_Analysis_Application.Models;
 
 namespace Article_Graph_Analysis_Application.Services
 {
-    /// <summary>
-    /// Graf üzerinden istatistiksel bilgileri hesaplar
-    /// ve Paper nesnelerinin türetilmiş alanlarını günceller.
-    /// </summary>
     public class StatisticsService
     {
-        private readonly Graph _graph;
-
-        public StatisticsService(Graph graph)
+        public static string GetGraphStatistics(Graph graph)
         {
-            _graph = graph ?? throw new ArgumentNullException(nameof(graph));
-        }
+            int totalNodes = graph.GetTotalNodes();
+            int totalEdges = graph.GetTotalEdges();
 
-        // =========================
-        // GENEL SAYILAR
-        // =========================
+            int totalOutgoingRefs = 0;
+            int totalIncomingRefs = 0;
 
-        public int TotalNodeCount => _graph.TotalNodeCount;
-
-        public int TotalEdgeCount =>
-            _graph.GetAllEdges().Count(e => e.Type == EdgeType.Citation);
-
-        // =========================
-        // CITATION BİLGİLERİ
-        // =========================
-
-        /// <summary>
-        /// Tüm Paper nesnelerinin CitedBy kümelerini günceller.
-        /// InCitationCount bu kümeden otomatik türetilir.
-        /// </summary>
-        public void UpdateCitationData()
-        {
-            // 1️⃣ Önce temizle
-            foreach (var node in _graph.GetAllNodes())
+            foreach (var node in graph.Nodes.Values)
             {
-                node.Paper.CitedBy.Clear();
+                totalOutgoingRefs += node.GetOutDegree();
+                totalIncomingRefs += node.GetInDegree();
             }
 
-            // 2️⃣ Sadece atıf (siyah) kenarları işle
-            foreach (var edge in _graph.GetAllEdges()
-                                       .Where(e => e.Type == EdgeType.Citation))
+            var mostCited = graph.GetMostCitedNode();
+            var mostReferencing = graph.GetMostReferencingNode();
+
+            string stats = $"Toplam Makale: {totalNodes}\n";
+            stats += $"Toplam Referans (Kenar): {totalEdges}\n";
+            stats += $"Toplam Verilen Referans: {totalOutgoingRefs}\n";
+            stats += $"Toplam Alınan Referans: {totalIncomingRefs}\n";
+
+            if (mostCited != null)
             {
-                // source -> target
-                edge.Target.Paper.CitedBy.Add(edge.Source.Id);
+                stats += $"En Çok Atıf Alan: {mostCited.Id} ({mostCited.GetInDegree()} atıf)\n";
             }
-        }
 
-        // =========================
-        // MAKSİMUM DEĞERLER
-        // =========================
+            if (mostReferencing != null)
+            {
+                stats += $"En Çok Referans Veren: {mostReferencing.Id} ({mostReferencing.GetOutDegree()} referans)\n";
+            }
 
-        public GraphNode? GetMostCitedNode()
-        {
-            return _graph.GetAllNodes()
-                         .OrderByDescending(n => n.Paper.InCitationCount)
-                         .FirstOrDefault();
-        }
-
-        public GraphNode? GetMostReferencingNode()
-        {
-            return _graph.GetAllNodes()
-                         .OrderByDescending(n =>
-                             _graph.GetOutDegree(n.Id))
-                         .FirstOrDefault();
+            return stats;
         }
     }
 }

@@ -1,173 +1,96 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Article_Graph_Analysis_Application.Models;
 
 namespace Article_Graph_Analysis_Application.Core.Centrality
 {
     public class BetweennessCentrality
     {
-        private readonly Graph _graph;
-
-        public BetweennessCentrality(Graph graph)
+        public static Dictionary<string, double> Calculate(Graph graph)
         {
-            _graph = graph ?? throw new ArgumentNullException(nameof(graph));
+            var centrality = new Dictionary<string, double>();
+            foreach (var nodeId in graph.Nodes.Keys)
+            {
+                centrality[nodeId] = 0.0;
+            }
+
+            var nodesList = graph.Nodes.Values.ToList();
+
+            for (int i = 0; i < nodesList.Count; i++)
+            {
+                for (int j = i + 1; j < nodesList.Count; j++)
+                {
+                    var source = nodesList[i];
+                    var target = nodesList[j];
+
+                    var paths = FindAllShortestPaths(graph, source, target);
+
+                    if (paths.Count > 0)
+                    {
+                        foreach (var path in paths)
+                        {
+                            for (int k = 1; k < path.Count - 1; k++)
+                            {
+                                centrality[path[k].Id] += 1.0 / paths.Count;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return centrality;
         }
 
-        public Dictionary<string, double> CalculateForAllNodes()
+        private static List<List<GraphNode>> FindAllShortestPaths(Graph graph, GraphNode source, GraphNode target)
         {
-            var allNodes = _graph.GetAllNodes().Select(n => n.Id).ToList();
-            var betweenness = allNodes.ToDictionary(id => id, _ => 0.0);
+            var allPaths = new List<List<GraphNode>>();
+            var queue = new Queue<List<GraphNode>>();
+            queue.Enqueue(new List<GraphNode> { source });
 
-            foreach (var source in allNodes)
-            {
-                var (predecessors, distances) = BfsShortestPaths(source);
-                AccumulateBetweenness(source, predecessors, distances, betweenness);
-            }
-
-            foreach (var key in betweenness.Keys.ToList())
-            {
-                betweenness[key] /= 2.0;
-            }
-
-            return betweenness;
-        }
-
-        private (Dictionary<string, List<string>> predecessors, Dictionary<string, int> distances) 
-            BfsShortestPaths(string source)
-        {
-            var distances = new Dictionary<string, int> { [source] = 0 };
-            var predecessors = new Dictionary<string, List<string>>();
-            var queue = new Queue<string>();
-            queue.Enqueue(source);
-
-            foreach (var node in _graph.GetAllNodes())
-            {
-                predecessors[node.Id] = new List<string>();
-            }
+            int shortestLength = int.MaxValue;
 
             while (queue.Count > 0)
             {
-                var current = queue.Dequeue();
-                int currentDist = distances[current];
+                var currentPath = queue.Dequeue();
+                var lastNode = currentPath[currentPath.Count - 1];
 
-                var neighbors = GetUndirectedNeighbors(current);
-
-                foreach (var neighbor in neighbors)
+                if (currentPath.Count > shortestLength)
                 {
-                    if (!distances.ContainsKey(neighbor))
-                    {
-                        distances[neighbor] = currentDist + 1;
-                        queue.Enqueue(neighbor);
-                    }
-
-                    if (distances[neighbor] == currentDist + 1)
-                    {
-                        predecessors[neighbor].Add(current);
-                    }
-                }
-            }
-
-            return (predecessors, distances);
-        }
-
-        private void AccumulateBetweenness(
-            string source,
-            Dictionary<string, List<string>> predecessors,
-            Dictionary<string, int> distances,
-            Dictionary<string, double> betweenness)
-        {
-            var delta = new Dictionary<string, double>();
-            foreach (var node in _graph.GetAllNodes())
-            {
-                delta[node.Id] = 0.0;
-            }
-
-            var sortedNodes = distances
-                .OrderByDescending(kvp => kvp.Value)
-                .Select(kvp => kvp.Key)
-                .ToList();
-
-            foreach (var w in sortedNodes)
-            {
-                if (w == source) continue;
-
-                foreach (var v in predecessors[w])
-                {
-                    int sigmaV = CountPathsTo(source, v, predecessors, distances);
-                    int sigmaW = CountPathsTo(source, w, predecessors, distances);
-
-                    if (sigmaW > 0)
-                    {
-                        delta[v] += (sigmaV / (double)sigmaW) * (1.0 + delta[w]);
-                    }
+                    continue;
                 }
 
-                if (w != source)
+                if (lastNode.Id == target.Id)
                 {
-                    betweenness[w] += delta[w];
+                    if (currentPath.Count < shortestLength)
+                    {
+                        shortestLength = currentPath.Count;
+                        allPaths.Clear();
+                    }
+
+                    if (currentPath.Count == shortestLength)
+                    {
+                        allPaths.Add(new List<GraphNode>(currentPath));
+                    }
+                    continue;
+                }
+
+                foreach (var neighbor in GetNeighbors(lastNode))
+                {
+                    if (!currentPath.Contains(neighbor))
+                    {
+                        var newPath = new List<GraphNode>(currentPath) { neighbor };
+                        queue.Enqueue(newPath);
+                    }
                 }
             }
+
+            return allPaths;
         }
 
-        private int CountPathsTo(
-            string source, 
-            string target, 
-            Dictionary<string, List<string>> predecessors,
-            Dictionary<string, int> distances)
+        private static List<GraphNode> GetNeighbors(GraphNode node)
         {
-            if (!distances.ContainsKey(target))
-                return 0;
-
-            if (target == source)
-                return 1;
-
-            var memo = new Dictionary<string, int>();
-            return CountPathsRecursive(source, target, predecessors, memo);
-        }
-
-        private int CountPathsRecursive(
-            string source,
-            string current,
-            Dictionary<string, List<string>> predecessors,
-            Dictionary<string, int> memo)
-        {
-            if (current == source)
-                return 1;
-
-            if (memo.ContainsKey(current))
-                return memo[current];
-
-            int total = 0;
-            foreach (var pred in predecessors[current])
-            {
-                total += CountPathsRecursive(source, pred, predecessors, memo);
-            }
-
-            memo[current] = total;
-            return total;
-        }
-
-        private HashSet<string> GetUndirectedNeighbors(string nodeId)
-        {
-            var neighbors = new HashSet<string>();
-
-            foreach (var edge in _graph.GetAllEdges().Where(e => e.Type == EdgeType.Citation))
-            {
-                if (edge.Source.Id == nodeId)
-                    neighbors.Add(edge.Target.Id);
-
-                if (edge.Target.Id == nodeId)
-                    neighbors.Add(edge.Source.Id);
-            }
-
-            return neighbors;
-        }
-
-        public double CalculateForNode(string nodeId)
-        {
-            var allResults = CalculateForAllNodes();
-            return allResults.TryGetValue(nodeId, out var value) ? value : 0.0;
+            var neighbors = new HashSet<GraphNode>();
+            neighbors.UnionWith(node.OutgoingNodes);
+            neighbors.UnionWith(node.IncomingNodes);
+            return neighbors.ToList();
         }
     }
 }

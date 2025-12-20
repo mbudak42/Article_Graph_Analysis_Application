@@ -1,10 +1,5 @@
-using System;
-using System.IO;
-using System.Linq;
 using System.Windows;
-using System.Windows.Controls;
-using System.Collections.Generic;
-
+using System.Windows.Input;
 using Article_Graph_Analysis_Application.Core;
 using Article_Graph_Analysis_Application.Core.HIndex;
 using Article_Graph_Analysis_Application.Core.Centrality;
@@ -14,341 +9,286 @@ using Article_Graph_Analysis_Application.Services;
 using Article_Graph_Analysis_Application.Services.Json;
 using Article_Graph_Analysis_Application.Visualization.Msagl;
 
-using Microsoft.Msagl.WpfGraphControl;
-
 namespace Article_Graph_Analysis_Application.Views
 {
     public partial class MainWindow : Window
     {
-        private Graph _fullGraph = null!;
-        private Graph _viewGraph = null!;
-        private HIndexCalculator _hIndexCalculator = null!;
-        private GraphExpander _graphExpander = null!;
-        private MsaglGraphController _graphController = null!;
-        private GraphViewer _viewer = null!;
-        private StatisticsService _statsService = null!;
-        private KCoreResult? _currentKCoreResult = null;
-
-        private TextBlock _txtTotalNodes = null!;
-        private TextBlock _txtTotalEdges = null!;
-        private TextBlock _txtMostCited = null!;
-        private TextBlock _txtMostReferencing = null!;
-        private TextBox _txtHIndexInput = null!;
-        private TextBlock _txtHIndex = null!;
-        private TextBlock _txtHMedian = null!;
-        private TextBox _txtHCore = null!;
-        private TextBox _txtBetweenness = null!;
-        private TextBox _txtKValue = null!;
-        private TextBlock _txtKCoreNodes = null!;
-        private TextBlock _txtKCoreEdges = null!;
+        private List<Paper> allPapers = new();
+        private Core.Graph mainGraph = new();
+        private Core.Graph displayGraph = new();
+        private MsaglGraphController? graphController;
+        private GraphExpander? graphExpander;
+        private string? selectedNodeId = null;
+        private int currentMode = 1;
 
         public MainWindow()
         {
             InitializeComponent();
-            BuildUI();
-            Loaded += OnLoaded;
+            LoadData();
+            InitializeGraph();
         }
 
-        private void BuildUI()
-        {
-            var stack = new StackPanel();
-            var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = stack };
-            RightPanel.Children.Add(scroll);
-
-            stack.Children.Add(CreateHeader("GENEL İSTATİSTİKLER"));
-            _txtTotalNodes = CreateLabeledText(stack, "Toplam Makale:", "0");
-            _txtTotalEdges = CreateLabeledText(stack, "Toplam Referans:", "0");
-            _txtMostCited = CreateLabeledText(stack, "En Çok Atıf Alan:", "-", true);
-            _txtMostReferencing = CreateLabeledText(stack, "En Çok Referans Veren:", "-", true);
-            
-            stack.Children.Add(new Separator { Margin = new Thickness(0, 15, 0, 15) });
-
-            stack.Children.Add(CreateHeader("H-INDEX HESAPLAMA"));
-            stack.Children.Add(CreateLabel("Makale ID:"));
-            _txtHIndexInput = new TextBox { Margin = new Thickness(0, 0, 0, 10) };
-            stack.Children.Add(_txtHIndexInput);
-            
-            var btnHIndex = new Button { Content = "H-Index Hesapla", Margin = new Thickness(0, 0, 0, 10) };
-            btnHIndex.Click += BtnCalculateHIndex_Click;
-            stack.Children.Add(btnHIndex);
-
-            _txtHIndex = CreateLabeledText(stack, "H-Index:", "-");
-            _txtHMedian = CreateLabeledText(stack, "H-Median:", "-");
-            
-            stack.Children.Add(CreateLabel("H-Core Makaleler:"));
-            _txtHCore = new TextBox { 
-                IsReadOnly = true, 
-                TextWrapping = TextWrapping.Wrap, 
-                Height = 100, 
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Margin = new Thickness(0, 0, 0, 10)
-            };
-            stack.Children.Add(_txtHCore);
-
-            stack.Children.Add(new Separator { Margin = new Thickness(0, 15, 0, 15) });
-
-            stack.Children.Add(CreateHeader("BETWEENNESS CENTRALITY"));
-            var btnBetweenness = new Button { Content = "Tüm Düğümler İçin Hesapla", Margin = new Thickness(0, 0, 0, 10) };
-            btnBetweenness.Click += BtnCalculateBetweenness_Click;
-            stack.Children.Add(btnBetweenness);
-
-            stack.Children.Add(CreateLabel("Sonuçlar (Top 10):"));
-            _txtBetweenness = new TextBox { 
-                IsReadOnly = true, 
-                TextWrapping = TextWrapping.Wrap, 
-                Height = 150, 
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Margin = new Thickness(0, 0, 0, 10)
-            };
-            stack.Children.Add(_txtBetweenness);
-
-            stack.Children.Add(new Separator { Margin = new Thickness(0, 15, 0, 15) });
-
-            stack.Children.Add(CreateHeader("K-CORE DECOMPOSITION"));
-            stack.Children.Add(CreateLabel("K Değeri:"));
-            _txtKValue = new TextBox { Text = "2", Margin = new Thickness(0, 0, 0, 10) };
-            stack.Children.Add(_txtKValue);
-
-            var btnKCore = new Button { Content = "K-Core Uygula", Margin = new Thickness(0, 0, 0, 10) };
-            btnKCore.Click += BtnApplyKCore_Click;
-            stack.Children.Add(btnKCore);
-
-            _txtKCoreNodes = CreateLabeledText(stack, "K-Core Düğüm Sayısı:", "-");
-            _txtKCoreEdges = CreateLabeledText(stack, "K-Core Kenar Sayısı:", "-");
-        }
-
-        private TextBlock CreateHeader(string text)
-        {
-            return new TextBlock { 
-                Text = text, 
-                FontWeight = FontWeights.Bold, 
-                FontSize = 14, 
-                Margin = new Thickness(0, 0, 0, 10) 
-            };
-        }
-
-        private TextBlock CreateLabel(string text)
-        {
-            return new TextBlock { 
-                Text = text, 
-                FontWeight = FontWeights.SemiBold, 
-                Margin = new Thickness(0, 5, 0, 2) 
-            };
-        }
-
-        private TextBlock CreateLabeledText(StackPanel parent, string label, string value, bool wrap = false)
-        {
-            parent.Children.Add(CreateLabel(label));
-            var txt = new TextBlock { 
-                Text = value, 
-                Margin = new Thickness(10, 0, 0, 5) 
-            };
-            if (wrap) txt.TextWrapping = TextWrapping.Wrap;
-            parent.Children.Add(txt);
-            return txt;
-        }
-
-        private void OnLoaded(object sender, RoutedEventArgs e)
+        private void LoadData()
         {
             try
             {
-                var loader = new JsonPaperLoader();
-                string jsonPath = Path.Combine(Directory.GetCurrentDirectory(), "Resources", "articles.json");
-                var papers = loader.LoadFromFile(jsonPath);
-
-                var builder = new GraphBuilder();
-                _fullGraph = builder.BuildGraph(papers);
-
-                _statsService = new StatisticsService(_fullGraph);
-                _statsService.UpdateCitationData();
-
-                _viewGraph = new Graph();
-                var firstPaper = papers.First();
-                _viewGraph.AddNode(new GraphNode(firstPaper));
-
-                _viewer = new GraphViewer();
-                _viewer.BindToPanel(GraphHost);
-
-                var styleService = new NodeStyleService();
-                _graphController = new MsaglGraphController(styleService);
-
-                _viewer.Graph = _graphController.BuildMsaglGraph(_viewGraph);
-
-                _hIndexCalculator = new HIndexCalculator(_fullGraph);
-                _graphExpander = new GraphExpander(_fullGraph);
-
-                _ = new GraphInteractionHandler(
-                    _fullGraph,
-                    _viewGraph,
-                    _hIndexCalculator,
-                    _graphExpander,
-                    _graphController,
-                    _viewer,
-                    OnGraphUpdated);
-
-                UpdateStatistics();
-
-                TestAllFeatures();
+                StatusText.Text = "Veriler yükleniyor...";
+                string jsonPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "articles.json");
+                allPapers = JsonPaperLoader.LoadPapers(jsonPath);
+                StatusText.Text = $"Yüklendi: {allPapers.Count} makale";
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Hata: {ex.Message}\n\n{ex.StackTrace}", "Yükleme Hatası", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Veri yükleme hatası: {ex.Message}", "Hata", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusText.Text = "Veri yüklenemedi!";
             }
         }
 
-        private void TestAllFeatures()
+        private void InitializeGraph()
         {
-            try
-            {
-                System.Diagnostics.Debug.WriteLine("=== TEST BAŞLADI ===");
-                
-                System.Diagnostics.Debug.WriteLine($"✓ FullGraph Nodes: {_fullGraph.TotalNodeCount}");
-                System.Diagnostics.Debug.WriteLine($"✓ FullGraph Edges: {_fullGraph.TotalEdgeCount}");
-                
-                var firstNode = _viewGraph.GetAllNodes().FirstOrDefault();
-                System.Diagnostics.Debug.WriteLine($"✓ First Node: {firstNode?.Id}");
-                
-                if (firstNode != null)
-                {
-                    var hResult = _hIndexCalculator.Calculate(firstNode.Id);
-                    System.Diagnostics.Debug.WriteLine($"✓ H-Index: {hResult.HIndex}, H-Median: {hResult.HMedian}");
-                }
-                
-                var bc = new BetweennessCentrality(_viewGraph);
-                var bcResults = bc.CalculateForAllNodes();
-                System.Diagnostics.Debug.WriteLine($"✓ Betweenness calculated for {bcResults.Count} nodes");
-                
-                var kCore = new KCoreDecomposition(_viewGraph);
-                var kResult = kCore.Decompose(1);
-                System.Diagnostics.Debug.WriteLine($"✓ K-Core (k=1): {kResult.NodeIds.Count} nodes");
-                
-                System.Diagnostics.Debug.WriteLine("\n✓✓✓ TÜM TESTLER BAŞARILI! ✓✓✓");
-                
-                MessageBox.Show("Tüm testler başarılı! Output penceresini kontrol et.", "Test Sonucu", 
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"✗ TEST HATASI: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine(ex.StackTrace);
-                
-                MessageBox.Show($"Test hatası:\n{ex.Message}", "Test Hatası", 
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            mainGraph = GraphBuilder.BuildGraphFromPapers(allPapers);
+            SwitchMode(1);
         }
 
-        private void OnGraphUpdated(HIndexResult hResult)
+        private void SwitchMode(int mode)
         {
-            _txtHIndex.Text = hResult.HIndex.ToString();
-            _txtHMedian.Text = hResult.HMedian.ToString("F2");
+            currentMode = mode;
 
-            var hCoreText = string.Join("\n", hResult.HCoreDetails.Select(x => 
-                $"{x.PaperId} (Atıf: {x.InCitationCount})"));
-            _txtHCore.Text = hCoreText;
+            switch (mode)
+            {
+                case 1:
+                    displayGraph = GraphBuilder.BuildFilteredGraph(allPapers, 50);
+                    HeaderText.Text = "Graf [Overview] - 50 Makale gösteriliyor.";
+                    break;
+                case 2:
+                    displayGraph = GraphBuilder.BuildFilteredGraph(allPapers, 150);
+                    HeaderText.Text = "Graf [Overview] - 100 Makale (F1-F2-F3: Seviyeler)";
+                    break;
+                case 3:
+                    displayGraph = mainGraph;
+                    HeaderText.Text = "Graf [Overview] - Tüm Makaleler";
+                    break;
+                case 4:
+                    displayGraph = GraphBuilder.BuildTopCitedGraph(allPapers, 5);
+                    HeaderText.Text = "Graf [Overview] - En Çok Atıf Alan 5";
+                    break;
+                default:
+                    displayGraph = GraphBuilder.BuildFilteredGraph(allPapers, 50);
+                    HeaderText.Text = "Graf [Overview] - 50 Makale gösteriliyor.";
+                    break;
+            }
 
+            graphController = new MsaglGraphController(GraphViewer);
+            graphExpander = new GraphExpander(mainGraph, displayGraph);
+            
+            graphController.DrawGraph(displayGraph);
             UpdateStatistics();
+            
+            HIndexPanel.Visibility = Visibility.Collapsed;
+            BetweennessPanel.Visibility = Visibility.Collapsed;
+            
+            StatusText.Text = $"Mod {mode} aktif - {displayGraph.GetTotalNodes()} düğüm gösteriliyor";
         }
 
         private void UpdateStatistics()
         {
-            _txtTotalNodes.Text = _viewGraph.TotalNodeCount.ToString();
+            StatisticsText.Text = StatisticsService.GetGraphStatistics(displayGraph);
+        }
+
+        private void Window_KeyDown(object sender, KeyEventArgs e)
+        {
+            switch (e.Key)
+            {
+                case Key.F1:
+                    SwitchMode(1);
+                    break;
+                case Key.F2:
+                    SwitchMode(2);
+                    break;
+                case Key.F3:
+                    SwitchMode(3);
+                    break;
+                case Key.F4:
+                    SwitchMode(4);
+                    break;
+                case Key.F5:
+                    LoadData();
+                    InitializeGraph();
+                    break;
+            }
+        }
+
+        private void GraphViewer_MouseDown(object sender, Microsoft.Msagl.Drawing.MsaglMouseEventArgs e)
+        {
+            var objectUnderCursor = GraphViewer.ObjectUnderMouseCursor;
+            if (objectUnderCursor?.DrawingObject is Microsoft.Msagl.Drawing.Node node)
+            {
+                selectedNodeId = node.Id;
+                ExpandGraphWithHCore(selectedNodeId);
+            }
+        }
+
+        private void ExpandGraphWithHCore(string nodeId)
+        {
+            var node = mainGraph.GetNode(nodeId);
+            if (node == null)
+            {
+                MessageBox.Show("Düğüm bulunamadı!", "Hata", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var hIndexResult = HIndexCalculator.Calculate(node);
+
+            HIndexResultText.Text = $"Seçilen Makale: {nodeId}\n";
+            HIndexResultText.Text += $"H-Index: {hIndexResult.HIndex}\n";
+            HIndexResultText.Text += $"H-Median: {hIndexResult.HMedian:F2}\n";
+            HIndexResultText.Text += $"H-Core Boyutu: {hIndexResult.HCore.Count}";
+            HIndexPanel.Visibility = Visibility.Visible;
+
+            if (hIndexResult.HCore.Count > 0 && graphExpander != null && graphController != null)
+            {
+                graphExpander.ExpandWithHCore(hIndexResult.HCore);
+                graphController.DrawGraph(displayGraph);
+                graphController.HighlightHCore(hIndexResult.HCore, nodeId);
+                UpdateStatistics();
+            }
+
+            StatusText.Text = $"Genişletildi: {nodeId} - H-Index: {hIndexResult.HIndex}";
+        }
+
+        private void CalculateHIndex_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Window
+            {
+                Title = "H-Index Hesaplama",
+                Width = 350,
+                Height = 180,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize
+            };
+
+            var stack = new System.Windows.Controls.StackPanel { Margin = new Thickness(20) };
+            stack.Children.Add(new System.Windows.Controls.TextBlock 
+            { 
+                Text = "Makale ID'sini girin:", 
+                Margin = new Thickness(0, 0, 0, 10),
+                FontSize = 13
+            });
             
-            int citationEdgeCount = _viewGraph.GetAllEdges().Count(e => e.Type == EdgeType.Citation);
-            _txtTotalEdges.Text = citationEdgeCount.ToString();
+            var textBox = new System.Windows.Controls.TextBox 
+            { 
+                Margin = new Thickness(0, 0, 0, 15),
+                Padding = new Thickness(5),
+                FontSize = 12
+            };
+            stack.Children.Add(textBox);
+            
+            var buttonPanel = new System.Windows.Controls.StackPanel 
+            { 
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            
+            var okButton = new System.Windows.Controls.Button 
+            { 
+                Content = "Tamam", 
+                Width = 80,
+                Margin = new Thickness(0, 0, 10, 0),
+                Padding = new Thickness(10, 5, 10, 5),
+                IsDefault = true
+            };
+            okButton.Click += (s, args) => dialog.DialogResult = true;
+            
+            var cancelButton = new System.Windows.Controls.Button 
+            { 
+                Content = "İptal", 
+                Width = 80,
+                Padding = new Thickness(10, 5, 10, 5),
+                IsCancel = true
+            };
+            cancelButton.Click += (s, args) => dialog.DialogResult = false;
+            
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+            stack.Children.Add(buttonPanel);
+            
+            dialog.Content = stack;
+            
+            bool? result = dialog.ShowDialog();
+            
+            if (result != true) return;
 
-            var mostCited = _statsService.GetMostCitedNode();
-            if (mostCited != null)
+            string input = textBox.Text.Trim();
+
+            if (string.IsNullOrEmpty(input)) return;
+
+            var node = mainGraph.GetNode(input);
+            if (node == null)
             {
-                _txtMostCited.Text = $"{mostCited.Id}\n(Atıf: {mostCited.Paper.InCitationCount})";
+                MessageBox.Show("Makale bulunamadı!", "Hata", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
             }
 
-            var mostReferencing = _statsService.GetMostReferencingNode();
-            if (mostReferencing != null)
-            {
-                int refCount = _fullGraph.GetOutDegree(mostReferencing.Id);
-                _txtMostReferencing.Text = $"{mostReferencing.Id}\n(Referans: {refCount})";
-            }
+            selectedNodeId = input;
+            ExpandGraphWithHCore(input);
         }
 
-        private void BtnCalculateHIndex_Click(object sender, RoutedEventArgs e)
+        private void CalculateBetweenness_Click(object sender, RoutedEventArgs e)
         {
-            try
+            StatusText.Text = "Betweenness Centrality hesaplanıyor...";
+
+            Task.Run(() =>
             {
-                string paperId = _txtHIndexInput.Text.Trim();
-                if (string.IsNullOrWhiteSpace(paperId))
+                var centrality = BetweennessCentrality.Calculate(displayGraph);
+
+                Dispatcher.Invoke(() =>
                 {
-                    MessageBox.Show("Lütfen bir makale ID'si girin.", "Uyarı", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                var hResult = _hIndexCalculator.Calculate(paperId);
-
-                _graphExpander.ExpandByHCore(_viewGraph, paperId, hResult.HCorePaperIds);
-                _viewer.Graph = _graphController.BuildMsaglGraph(_viewGraph);
-
-                OnGraphUpdated(hResult);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Hata: {ex.Message}", "Hesaplama Hatası", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+                    var sortedResults = centrality.OrderByDescending(kvp => kvp.Value).Take(20);
+                    
+                    BetweennessResultText.Text = "Top 20 Düğüm (Betweenness):\n\n";
+                    int rank = 1;
+                    foreach (var kvp in sortedResults)
+                    {
+                        BetweennessResultText.Text += $"{rank}. {kvp.Key}: {kvp.Value:F2}\n";
+                        rank++;
+                    }
+                    
+                    BetweennessPanel.Visibility = Visibility.Visible;
+                    StatusText.Text = "Betweenness Centrality hesaplandı";
+                });
+            });
         }
 
-        private void BtnCalculateBetweenness_Click(object sender, RoutedEventArgs e)
+        private void ApplyKCore_Click(object sender, RoutedEventArgs e)
         {
-            try
+            if (!int.TryParse(KValueTextBox.Text, out int k) || k < 1)
             {
-                _txtBetweenness.Text = "Hesaplanıyor...";
-                this.Cursor = System.Windows.Input.Cursors.Wait;
-
-                var bc = new BetweennessCentrality(_viewGraph);
-                var results = bc.CalculateForAllNodes();
-
-                var top10 = results
-                    .OrderByDescending(x => x.Value)
-                    .Take(10)
-                    .Select(x => $"{x.Key}: {x.Value:F4}")
-                    .ToList();
-
-                _txtBetweenness.Text = string.Join("\n", top10);
+                MessageBox.Show("Geçerli bir K değeri girin (1 veya daha büyük)", "Hata", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Hata: {ex.Message}", "Hesaplama Hatası", MessageBoxButton.OK, MessageBoxImage.Error);
-                _txtBetweenness.Text = "Hata!";
-            }
-            finally
-            {
-                this.Cursor = System.Windows.Input.Cursors.Arrow;
-            }
-        }
 
-        private void BtnApplyKCore_Click(object sender, RoutedEventArgs e)
-        {
-            try
+            StatusText.Text = $"K-Core (k={k}) hesaplanıyor...";
+
+            Task.Run(() =>
             {
-                if (!int.TryParse(_txtKValue.Text, out int k) || k < 0)
+                var kCoreNodes = KCoreDecomposition.FindKCore(displayGraph, k);
+
+                Dispatcher.Invoke(() =>
                 {
-                    MessageBox.Show("Lütfen geçerli bir k değeri girin (0 veya üstü).", "Uyarı", 
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
+                    if (kCoreNodes.Count == 0)
+                    {
+                        MessageBox.Show($"K={k} için K-Core bulunamadı. Daha küçük bir K değeri deneyin.", "Bilgi", MessageBoxButton.OK, MessageBoxImage.Information);
+                        StatusText.Text = $"K-Core bulunamadı (k={k})";
+                        return;
+                    }
 
-                var kCore = new KCoreDecomposition(_viewGraph);
-                _currentKCoreResult = kCore.Decompose(k);
-
-                _txtKCoreNodes.Text = _currentKCoreResult.NodeIds.Count.ToString();
-                _txtKCoreEdges.Text = _currentKCoreResult.Edges.Count.ToString();
-
-                _viewer.Graph = _graphController.BuildMsaglGraphWithKCore(_viewGraph, _currentKCoreResult);
-
-                MessageBox.Show($"K-Core uygulandı!\nDüğüm: {_currentKCoreResult.NodeIds.Count}\nKenar: {_currentKCoreResult.Edges.Count}", 
-                    "Başarılı", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Hata: {ex.Message}", "K-Core Hatası", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+                    graphController?.HighlightKCore(kCoreNodes);
+                    StatusText.Text = $"K-Core uygulandı (k={k}) - {kCoreNodes.Count} düğüm";
+                    
+                    MessageBox.Show($"K-Core sonucu:\n{kCoreNodes.Count} düğüm bulundu", "K-Core", MessageBoxButton.OK, MessageBoxImage.Information);
+                });
+            });
         }
     }
 }
