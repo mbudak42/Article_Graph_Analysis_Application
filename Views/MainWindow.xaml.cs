@@ -37,6 +37,10 @@ namespace Article_Graph_Analysis_Application.Views
 				StatusText.Text = "Veriler yükleniyor...";
 				string jsonPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "articles.json");
 				allPapers = JsonPaperLoader.LoadPapers(jsonPath);
+				foreach (var paper in allPapers)
+				{
+					paper.InCitationCount = 0;
+				}
 				StatusText.Text = $"Yüklendi: {allPapers.Count} makale";
 			}
 			catch (Exception ex)
@@ -50,7 +54,6 @@ namespace Article_Graph_Analysis_Application.Views
 		{
 			mainGraph = GraphBuilder.BuildGraphFromPapers(allPapers);
 
-			// Eski viewer'ı temizle
 			if (viewer != null)
 			{
 				GraphHost.Children.Clear();
@@ -59,8 +62,26 @@ namespace Article_Graph_Analysis_Application.Views
 			viewer = new GraphViewer();
 			viewer.BindToPanel(GraphHost);
 
-			// Mevcut modu koru
+			// Düğüme tıklama event'i ekle
+			viewer.MouseDown += Viewer_MouseDown;
+
 			SwitchMode(currentMode);
+		}
+
+		private void Viewer_MouseDown(object? sender, Microsoft.Msagl.Drawing.MsaglMouseEventArgs e)
+		{
+			try
+			{
+				if (viewer?.ObjectUnderMouseCursor?.DrawingObject is Microsoft.Msagl.Drawing.Node node)
+				{
+					ExpandGraphWithHCore(node.Id);
+				}
+			}
+			catch (Exception ex)
+			{
+				MessageBox.Show($"Bu makale için h-index hesaplanamıyor!\n\n{ex.Message}",
+					"Hata", MessageBoxButton.OK, MessageBoxImage.Warning);
+			}
 		}
 
 		private void SwitchMode(int mode)
@@ -71,36 +92,45 @@ namespace Article_Graph_Analysis_Application.Views
 			{
 				case 1:
 					displayGraph = GraphBuilder.BuildFilteredGraph(allPapers, 50);
-					HeaderText.Text = "Graf [Overview] - 50 Makale gösteriliyor.";
+					HeaderText.Text = "Graf - 50 Makale (F1-F2-F3-F4: Seviyeler) / (F5: Yenile)";
 					break;
 				case 2:
-					displayGraph = GraphBuilder.BuildFilteredGraph(allPapers, 150);
-					HeaderText.Text = "Graf [Overview] - 100 Makale (F1-F2-F3: Seviyeler)";
+					displayGraph = GraphBuilder.BuildFilteredGraph(allPapers, 200);
+					HeaderText.Text = "Graf - 200 Makale (F1-F2-F3-F4: Seviyeler) / (F5: Yenile)";
 					break;
 				case 3:
 					displayGraph = mainGraph;
-					HeaderText.Text = "Graf [Overview] - Tüm Makaleler";
+					HeaderText.Text = "Graf - Tüm Makaleler (F1-F2-F3-F4: Seviyeler) / (F5: Yenile)";
 					break;
 				case 4:
-					displayGraph = GraphBuilder.BuildTopCitedGraph(allPapers, 5);
-					HeaderText.Text = "Graf [Overview] - En Çok Atıf Alan 5";
+					displayGraph = GraphBuilder.BuildTopCitedGraph(allPapers, 10);
+					HeaderText.Text = "Graf - En Çok Atıf Alan 10 Makale (F1-F2-F3-F4: Seviyeler) / (F5: Yenile)";
 					break;
 				default:
 					displayGraph = GraphBuilder.BuildFilteredGraph(allPapers, 50);
-					HeaderText.Text = "Graf [Overview] - 50 Makale gösteriliyor.";
+					HeaderText.Text = "Graf - 50 Makale (F1-F2-F3-F4: Seviyeler) / (F5: Yenile)";
 					break;
 			}
 
-			graphController = new MsaglGraphController(viewer);
-			graphExpander = new GraphExpander(mainGraph, displayGraph);
+			if (viewer != null)
+			{
+				GraphHost.Children.Clear();
+				viewer = new GraphViewer();
+				viewer.BindToPanel(GraphHost);
+				viewer.MouseDown += Viewer_MouseDown;
 
-			graphController.DrawGraph(displayGraph);
-			UpdateStatistics();
+				graphController = new MsaglGraphController(viewer);
+				graphExpander = new GraphExpander(mainGraph, displayGraph);
 
-			HIndexPanel.Visibility = Visibility.Collapsed;
-			BetweennessPanel.Visibility = Visibility.Collapsed;
+				graphController.DrawGraph(displayGraph);
 
-			StatusText.Text = $"Mod {mode} aktif - {displayGraph.GetTotalNodes()} düğüm gösteriliyor";
+				UpdateStatistics();
+
+				HIndexPanel.Visibility = Visibility.Collapsed;
+				BetweennessPanel.Visibility = Visibility.Collapsed;
+
+				StatusText.Text = $"Mod {mode} aktif - {displayGraph.GetTotalNodes()} düğüm gösteriliyor";
+			}
 		}
 
 		private void UpdateStatistics()
@@ -113,16 +143,16 @@ namespace Article_Graph_Analysis_Application.Views
 			switch (e.Key)
 			{
 				case Key.F1:
-					SwitchMode(1);
+					if (currentMode != 1) SwitchMode(1);
 					break;
 				case Key.F2:
-					SwitchMode(2);
+					if (currentMode != 2) SwitchMode(2);
 					break;
 				case Key.F3:
-					SwitchMode(3);
+					if (currentMode != 3) SwitchMode(3);
 					break;
 				case Key.F4:
-					SwitchMode(4);
+					if (currentMode != 4) SwitchMode(4);
 					break;
 				case Key.F5:
 					LoadData();
@@ -148,15 +178,12 @@ namespace Article_Graph_Analysis_Application.Views
 			HIndexResultText.Text += $"H-Core Boyutu: {hIndexResult.HCore.Count}";
 			HIndexPanel.Visibility = Visibility.Visible;
 
-			if (hIndexResult.HCore.Count > 0 && graphExpander != null && graphController != null)
+			if (hIndexResult.HCore.Count > 0 && graphController != null)
 			{
-				graphExpander.ExpandWithHCore(hIndexResult.HCore);
-				graphController.DrawGraph(displayGraph);
 				graphController.HighlightHCore(hIndexResult.HCore, nodeId);
-				UpdateStatistics();
 			}
 
-			StatusText.Text = $"Genişletildi: {nodeId} - H-Index: {hIndexResult.HIndex}";
+			StatusText.Text = $"H-Core gösterildi: {nodeId} - H-Index: {hIndexResult.HIndex}";
 		}
 
 		private void CalculateHIndex_Click(object sender, RoutedEventArgs e)
@@ -239,7 +266,9 @@ namespace Article_Graph_Analysis_Application.Views
 
 		private void CalculateBetweenness_Click(object sender, RoutedEventArgs e)
 		{
-			StatusText.Text = "Betweenness Centrality hesaplanıyor...";
+			StatusText.Text = "Betweenness Centrality hesaplanıyor... (Büyük graflarda 1-2 dakika sürebilir)";
+			BetweennessPanel.Visibility = Visibility.Visible;
+			BetweennessResultText.Text = "⏳ Hesaplanıyor...\nLütfen bekleyin.";
 
 			Task.Run(() =>
 			{
@@ -247,17 +276,16 @@ namespace Article_Graph_Analysis_Application.Views
 
 				Dispatcher.Invoke(() =>
 				{
-					var sortedResults = centrality.OrderByDescending(kvp => kvp.Value).Take(20);
+					var sortedResults = centrality.OrderByDescending(kvp => kvp.Value);
 
-					BetweennessResultText.Text = "Top 20 Düğüm (Betweenness):\n\n";
+					BetweennessResultText.Text = "Betweenness Centrality (0'dan büyük):\n\n";
 					int rank = 1;
 					foreach (var kvp in sortedResults)
 					{
-						BetweennessResultText.Text += $"{rank}. {kvp.Key}: {kvp.Value:F2}\n";
+						BetweennessResultText.Text += $"{rank}. {kvp.Key}: {kvp.Value:F4}\n";
 						rank++;
 					}
 
-					BetweennessPanel.Visibility = Visibility.Visible;
 					StatusText.Text = "Betweenness Centrality hesaplandı";
 				});
 			});

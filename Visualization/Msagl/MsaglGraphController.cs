@@ -25,27 +25,93 @@ namespace Article_Graph_Analysis_Application.Visualization.Msagl
         public void DrawGraph(CoreGraph graph)
         {
             displayGraph = graph;
-            var msaglGraph = new MsaglGraph();
-
-            foreach (var node in graph.Nodes.Values)
+            
+            if (viewer.Graph != null)
             {
-                var msaglNode = msaglGraph.AddNode(node.Id);
-                msaglNode.LabelText = node.Id;
-
-                int citationCount = node.GetInDegree();
-                NodeStyleService.ApplyNodeStyle(msaglNode, GraphColorPalette.DefaultNodeColor, citationCount);
+                var existingNodeIds = viewer.Graph.Nodes.Select(n => n.Id).ToHashSet();
+                
+                foreach (var node in graph.Nodes.Values)
+                {
+                    if (!existingNodeIds.Contains(node.Id))
+                    {
+                        try
+                        {
+                            var msaglNode = viewer.Graph.AddNode(node.Id);
+                            msaglNode.LabelText = node.Id;
+                            int citationCount = node.GetInDegree();
+                            NodeStyleService.ApplyNodeStyle(msaglNode, GraphColorPalette.DefaultNodeColor, citationCount);
+                        }
+                        catch { }
+                    }
+                }
+                
+                var existingEdges = new HashSet<(string, string)>();
+                try
+                {
+                    foreach (Edge e in viewer.Graph.Edges)
+                    {
+                        existingEdges.Add((e.Source, e.Target));
+                    }
+                }
+                catch { }
+                
+                foreach (var edge in graph.Edges)
+                {
+                    if (!existingEdges.Contains((edge.Source.Id, edge.Target.Id)))
+                    {
+                        try
+                        {
+                            if (viewer.Graph.FindNode(edge.Source.Id) != null && 
+                                viewer.Graph.FindNode(edge.Target.Id) != null)
+                            {
+                                var msaglEdge = viewer.Graph.AddEdge(edge.Source.Id, edge.Target.Id);
+                                NodeStyleService.ApplyEdgeStyle(msaglEdge, Color.Black, 1.0);
+                            }
+                        }
+                        catch { }
+                    }
+                }
+                
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    viewer.Invalidate();
+                }, DispatcherPriority.Render);
             }
-
-            foreach (var edge in graph.Edges)
+            else
             {
-                var msaglEdge = msaglGraph.AddEdge(edge.Source.Id, edge.Target.Id);
-                NodeStyleService.ApplyEdgeStyle(msaglEdge, Color.Black, 1.0);
+                var msaglGraph = new MsaglGraph();
+
+                foreach (var node in graph.Nodes.Values)
+                {
+                    try
+                    {
+                        var msaglNode = msaglGraph.AddNode(node.Id);
+                        msaglNode.LabelText = node.Id;
+                        int citationCount = node.GetInDegree();
+                        NodeStyleService.ApplyNodeStyle(msaglNode, GraphColorPalette.DefaultNodeColor, citationCount);
+                    }
+                    catch { }
+                }
+
+                foreach (var edge in graph.Edges)
+                {
+                    try
+                    {
+                        if (msaglGraph.FindNode(edge.Source.Id) != null && 
+                            msaglGraph.FindNode(edge.Target.Id) != null)
+                        {
+                            var msaglEdge = msaglGraph.AddEdge(edge.Source.Id, edge.Target.Id);
+                            NodeStyleService.ApplyEdgeStyle(msaglEdge, Color.Black, 1.0);
+                        }
+                    }
+                    catch { }
+                }
+
+                Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    viewer.Graph = msaglGraph;
+                }), DispatcherPriority.Loaded);
             }
-
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                viewer.Graph = msaglGraph;
-            }, DispatcherPriority.Render);
         }
 
         public void HighlightHCore(List<GraphNode> hCoreNodes, string clickedNodeId)
@@ -59,30 +125,34 @@ namespace Article_Graph_Analysis_Application.Visualization.Msagl
 
             Application.Current.Dispatcher.Invoke(() =>
             {
-                foreach (Node node in viewer.Graph.Nodes)
+                try
                 {
-                    var graphNode = displayGraph.GetNode(node.Id);
-                    if (graphNode == null) continue;
+                    foreach (Node node in viewer.Graph.Nodes)
+                    {
+                        var graphNode = displayGraph.GetNode(node.Id);
+                        if (graphNode == null) continue;
 
-                    int citationCount = graphNode.GetInDegree();
+                        int citationCount = graphNode.GetInDegree();
 
-                    if (node.Id == clickedNodeId)
-                    {
-                        NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.ClickedNodeColor, citationCount);
-                    }
-                    else if (newHCoreIds.Contains(node.Id))
-                    {
-                        NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.NewHCoreNodeColor, citationCount);
-                    }
-                    else if (currentHCoreNodes.Contains(node.Id))
-                    {
-                        NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.HCoreNodeColor, citationCount);
-                    }
-                    else if (clickedNodes.Contains(node.Id))
-                    {
-                        NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.ClickedNodeColor, citationCount);
+                        if (node.Id == clickedNodeId)
+                        {
+                            NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.ClickedNodeColor, citationCount);
+                        }
+                        else if (newHCoreIds.Contains(node.Id))
+                        {
+                            NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.NewHCoreNodeColor, citationCount);
+                        }
+                        else if (currentHCoreNodes.Contains(node.Id))
+                        {
+                            NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.HCoreNodeColor, citationCount);
+                        }
+                        else if (clickedNodes.Contains(node.Id))
+                        {
+                            NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.ClickedNodeColor, citationCount);
+                        }
                     }
                 }
+                catch { }
 
                 viewer.Invalidate();
             }, DispatcherPriority.Render);
@@ -94,34 +164,38 @@ namespace Article_Graph_Analysis_Application.Visualization.Msagl
 
             Application.Current.Dispatcher.Invoke(() =>
             {
-                foreach (Node node in viewer.Graph.Nodes)
+                try
                 {
-                    var graphNode = displayGraph.GetNode(node.Id);
-                    if (graphNode == null) continue;
-
-                    int citationCount = graphNode.GetInDegree();
-
-                    if (kCoreNodeIds.Contains(node.Id))
+                    foreach (Node node in viewer.Graph.Nodes)
                     {
-                        NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.KCoreNodeColor, citationCount);
+                        var graphNode = displayGraph.GetNode(node.Id);
+                        if (graphNode == null) continue;
+
+                        int citationCount = graphNode.GetInDegree();
+
+                        if (kCoreNodeIds.Contains(node.Id))
+                        {
+                            NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.KCoreNodeColor, citationCount);
+                        }
+                        else
+                        {
+                            NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.DefaultNodeColor, citationCount);
+                        }
                     }
-                    else
+
+                    foreach (Edge edge in viewer.Graph.Edges)
                     {
-                        NodeStyleService.ApplyNodeStyle(node, GraphColorPalette.DefaultNodeColor, citationCount);
+                        if (kCoreNodeIds.Contains(edge.Source) && kCoreNodeIds.Contains(edge.Target))
+                        {
+                            NodeStyleService.ApplyEdgeStyle(edge, GraphColorPalette.KCoreNodeColor, 2.0);
+                        }
+                        else
+                        {
+                            NodeStyleService.ApplyEdgeStyle(edge, Color.LightGray, 1.0);
+                        }
                     }
                 }
-
-                foreach (Edge edge in viewer.Graph.Edges)
-                {
-                    if (kCoreNodeIds.Contains(edge.Source) && kCoreNodeIds.Contains(edge.Target))
-                    {
-                        NodeStyleService.ApplyEdgeStyle(edge, GraphColorPalette.KCoreNodeColor, 2.0);
-                    }
-                    else
-                    {
-                        NodeStyleService.ApplyEdgeStyle(edge, Color.LightGray, 1.0);
-                    }
-                }
+                catch { }
 
                 viewer.Invalidate();
             }, DispatcherPriority.Render);

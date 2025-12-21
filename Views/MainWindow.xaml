@@ -82,7 +82,7 @@
 				</Grid.ColumnDefinitions>
 
 				<TextBlock Grid.Column="0"
-						   Text="Graf [Overview] - 50 Makale gösteriliyor."
+						   Text="Graf - 50 Makale gösteriliyor."
 						   x:Name="HeaderText"
 						   Foreground="White"
 						   FontSize="18"
@@ -133,11 +133,11 @@
 
 							<TextBlock Text="F1: Özet (Top 50)"
 									   Margin="0,3"/>
-							<TextBlock Text="F2: Orta (Top 150)"
+							<TextBlock Text="F2: Orta (Top 200)"
 									   Margin="0,3"/>
 							<TextBlock Text="F3: Tüm Detaylar"
 									   Margin="0,3"/>
-							<TextBlock Text="F4: En Çok Atıf Alan 5"
+							<TextBlock Text="F4: En Çok Atıf Alan 10"
 									   Margin="0,3"
 									   Foreground="#FF6F00"
 									   FontWeight="SemiBold"/>
@@ -154,12 +154,12 @@
 									   Margin="0,0,0,10"
 									   Foreground="#1565C0"/>
 
-							<TextBlock Text="• Düğme Sol Tık: Genişlet"
+							<TextBlock Text="• Sol Tık Sürükle: Gezinti"
 									   Margin="0,3"
 									   TextWrapping="Wrap"/>
 							<TextBlock Text="• Mouse Tekerleri: Zoom"
 									   Margin="0,3"/>
-							<TextBlock Text="• Sağ Tık Sürükle: Gezinti"
+							<TextBlock Text="• Sağ Tık Düğme: Detay"
 									   Margin="0,3"
 									   TextWrapping="Wrap"/>
 						</StackPanel>

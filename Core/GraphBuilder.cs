@@ -2,59 +2,90 @@ using Article_Graph_Analysis_Application.Models;
 
 namespace Article_Graph_Analysis_Application.Core
 {
-    public class GraphBuilder
-    {
-        public static Graph BuildGraphFromPapers(List<Paper> papers)
-        {
-            var graph = new Graph();
+	public class GraphBuilder
+	{
+		public static Graph BuildGraphFromPapers(List<Paper> papers)
+		{
+			var graph = new Graph();
+			var paperIds = papers.Select(p => p.Id).ToHashSet();
 
-            foreach (var paper in papers)
-            {
-                var node = new GraphNode(paper);
-                graph.AddNode(node);
-            }
+			// Önce tüm düğümleri ekle
+			foreach (var paper in papers)
+			{
+				var node = new GraphNode(paper);
+				graph.AddNode(node);
+			}
 
-            foreach (var paper in papers)
-            {
-                var sourceNode = graph.GetNode(paper.Id);
-                if (sourceNode != null)
-                {
-                    foreach (var refId in paper.ReferencedWorks)
-                    {
-                        var targetNode = graph.GetNode(refId);
-                        if (targetNode != null)
-                        {
-                            graph.AddEdge(sourceNode, targetNode);
-                            targetNode.Paper.InCitationCount++;
-                        }
-                    }
-                }
-            }
+			// Sadece mevcut makaleler arasındaki referansları ekle
+			foreach (var paper in papers)
+			{
+				var sourceNode = graph.GetNode(paper.Id);
+				if (sourceNode != null)
+				{
+					foreach (var refId in paper.ReferencedWorks)
+					{
+						// ÖNEMLI: Sadece papers listesinde olan referanslar
+						if (paperIds.Contains(refId))
+						{
+							var targetNode = graph.GetNode(refId);
+							if (targetNode != null)
+							{
+								graph.AddEdge(sourceNode, targetNode);
+								targetNode.Paper.InCitationCount++;
+							}
+						}
+					}
+				}
+			}
 
-            return graph;
-        }
+			return graph;
+		}
+		public static Graph BuildFilteredGraph(List<Paper> papers, int maxPapers)
+		{
+			var sortedPapers = papers
+				.OrderByDescending(p => p.InCitationCount)
+				.Take(maxPapers)
+				.ToList();
 
-        public static Graph BuildFilteredGraph(List<Paper> papers, int maxPapers)
-        {
-            var sortedPapers = papers.OrderByDescending(p => p.InCitationCount).Take(maxPapers).ToList();
-            return BuildGraphFromPapers(sortedPapers);
-        }
+			var graph = new Graph();
+			var selectedIds = sortedPapers.Select(p => p.Id).ToHashSet();
 
-        public static Graph BuildTopCitedGraph(List<Paper> papers, int topCount)
-        {
-            var topPapers = papers.OrderByDescending(p => p.InCitationCount).Take(topCount).ToList();
-            var relatedIds = new HashSet<string>(topPapers.Select(p => p.Id));
+			// Sadece seçili makaleleri ekle
+			foreach (var paper in sortedPapers)
+			{
+				var node = new GraphNode(paper);
+				graph.AddNode(node);
+			}
 
-            foreach (var paper in topPapers)
-            {
-                foreach (var refId in paper.ReferencedWorks)
-                {
-                    relatedIds.Add(refId);
-                }
-            }
+			// Sadece ikisi de seçili olan referansları ekle
+			foreach (var paper in sortedPapers)
+			{
+				var sourceNode = graph.GetNode(paper.Id);
+				if (sourceNode != null)
+				{
+					foreach (var refId in paper.ReferencedWorks)
+					{
+						// ÖNEMLI: Sadece seçili makaleler arasındaki referanslar
+						if (selectedIds.Contains(refId))
+						{
+							var targetNode = graph.GetNode(refId);
+							if (targetNode != null)
+							{
+								graph.AddEdge(sourceNode, targetNode);
+								targetNode.Paper.InCitationCount++;
+							}
+						}
+					}
+				}
+			}
 
-            var relatedPapers = papers.Where(p => relatedIds.Contains(p.Id)).ToList();
-            return BuildGraphFromPapers(relatedPapers);
-        }
-    }
+			return graph;
+		}
+
+		public static Graph BuildTopCitedGraph(List<Paper> papers, int topCount)
+		{
+			var topPapers = papers.OrderByDescending(p => p.InCitationCount).Take(topCount).ToList();
+			return BuildGraphFromPapers(topPapers);
+		}
+	}
 }
