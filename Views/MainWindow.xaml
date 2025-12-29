@@ -123,7 +123,10 @@
 					ClipToBounds="True">
 				<Grid x:Name="GraphHost"
 					  ClipToBounds="True">
-					
+
+					<!-- MSAGL VIEWER BURAYA BAĞLANACAK -->
+					<Grid x:Name="GraphContainer"/>
+
 					<!-- TOOLTIP -->
 					<Border x:Name="NodeTooltip"
 							Background="White"
@@ -170,7 +173,7 @@
 									   Margin="0,8,0,0"/>
 						</StackPanel>
 					</Border>
-					
+
 				</Grid>
 			</Border>
 

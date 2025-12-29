@@ -54,11 +54,12 @@ namespace Article_Graph_Analysis_Application.Views
 
 			if (viewer != null)
 			{
-				GraphHost.Children.Clear();
+				// ÖNEMLİ: Tooltip'i silmemek için GraphHost'u değil GraphContainer'ı temizle
+				GraphContainer.Children.Clear();
 			}
 
 			viewer = new GraphViewer();
-			viewer.BindToPanel(GraphHost);
+			viewer.BindToPanel(GraphContainer);
 
 			viewer.MouseDown += Viewer_MouseDown;
 			viewer.MouseMove += Viewer_MouseMove;
@@ -113,33 +114,38 @@ namespace Article_Graph_Analysis_Application.Views
 			var paper = node.Paper;
 
 			TooltipTitle.Text = paper.Title;
-			
+
 			TooltipAuthors.Text = string.Join(", ", paper.Authors.Take(3));
 			if (paper.Authors.Count > 3)
 				TooltipAuthors.Text += $" (+{paper.Authors.Count - 3} daha)";
-			
+
 			TooltipYear.Text = $"Yıl: {paper.Year}";
 			TooltipCitations.Text = $"Atıf Sayısı: {paper.InCitationCount}";
 			TooltipReferences.Text = $"Referans Sayısı: {paper.ReferencedWorks.Count}";
 			TooltipId.Text = $"ID: {paper.Id}";
 
 			var mousePos = Mouse.GetPosition(GraphHost);
-			
+
 			double tooltipWidth = 300;
 			double tooltipHeight = 200;
-			
+
 			double left = mousePos.X + 15;
 			double top = mousePos.Y + 15;
-			
+
 			if (left + tooltipWidth > GraphHost.ActualWidth)
 				left = mousePos.X - tooltipWidth - 15;
-			
+
 			if (top + tooltipHeight > GraphHost.ActualHeight)
 				top = mousePos.Y - tooltipHeight - 15;
-			
-			Canvas.SetLeft(NodeTooltip, Math.Max(10, left));
-			Canvas.SetTop(NodeTooltip, Math.Max(10, top));
-			
+
+			left = Math.Max(10, left);
+			top = Math.Max(10, top);
+
+			// Grid içinde Canvas.SetLeft/Top çalışmadığı için Margin ile konumlandır
+			NodeTooltip.HorizontalAlignment = HorizontalAlignment.Left;
+			NodeTooltip.VerticalAlignment = VerticalAlignment.Top;
+			NodeTooltip.Margin = new Thickness(left, top, 0, 0);
+
 			NodeTooltip.Visibility = Visibility.Visible;
 		}
 
@@ -173,9 +179,11 @@ namespace Article_Graph_Analysis_Application.Views
 
 			if (viewer != null)
 			{
-				GraphHost.Children.Clear();
+				// ÖNEMLİ: Tooltip'i silmemek için GraphHost'u değil GraphContainer'ı temizle
+				GraphContainer.Children.Clear();
+
 				viewer = new GraphViewer();
-				viewer.BindToPanel(GraphHost);
+				viewer.BindToPanel(GraphContainer);
 				viewer.MouseDown += Viewer_MouseDown;
 				viewer.MouseMove += Viewer_MouseMove;
 
