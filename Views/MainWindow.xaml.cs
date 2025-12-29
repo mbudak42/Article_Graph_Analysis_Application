@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using Article_Graph_Analysis_Application.Core;
 using Article_Graph_Analysis_Application.Core.HIndex;
@@ -37,10 +38,7 @@ namespace Article_Graph_Analysis_Application.Views
 				StatusText.Text = "Veriler yükleniyor...";
 				string jsonPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "articles.json");
 				allPapers = JsonPaperLoader.LoadPapers(jsonPath);
-				foreach (var paper in allPapers)
-				{
-					paper.InCitationCount = 0;
-				}
+
 				StatusText.Text = $"Yüklendi: {allPapers.Count} makale";
 			}
 			catch (Exception ex)
@@ -62,10 +60,29 @@ namespace Article_Graph_Analysis_Application.Views
 			viewer = new GraphViewer();
 			viewer.BindToPanel(GraphHost);
 
-			// Düğüme tıklama event'i ekle
 			viewer.MouseDown += Viewer_MouseDown;
+			viewer.MouseMove += Viewer_MouseMove;
 
 			SwitchMode(currentMode);
+		}
+
+		private void Viewer_MouseMove(object? sender, Microsoft.Msagl.Drawing.MsaglMouseEventArgs e)
+		{
+			try
+			{
+				if (viewer?.ObjectUnderMouseCursor?.DrawingObject is Microsoft.Msagl.Drawing.Node msaglNode)
+				{
+					ShowNodeTooltip(msaglNode.Id);
+				}
+				else
+				{
+					NodeTooltip.Visibility = Visibility.Collapsed;
+				}
+			}
+			catch
+			{
+				// Tooltip hatasını sessizce göz ardı et
+			}
 		}
 
 		private void Viewer_MouseDown(object? sender, Microsoft.Msagl.Drawing.MsaglMouseEventArgs e)
@@ -84,6 +101,48 @@ namespace Article_Graph_Analysis_Application.Views
 			}
 		}
 
+		private void ShowNodeTooltip(string nodeId)
+		{
+			var node = displayGraph.GetNode(nodeId);
+			if (node == null)
+			{
+				NodeTooltip.Visibility = Visibility.Collapsed;
+				return;
+			}
+
+			var paper = node.Paper;
+
+			TooltipTitle.Text = paper.Title;
+			
+			TooltipAuthors.Text = string.Join(", ", paper.Authors.Take(3));
+			if (paper.Authors.Count > 3)
+				TooltipAuthors.Text += $" (+{paper.Authors.Count - 3} daha)";
+			
+			TooltipYear.Text = $"Yıl: {paper.Year}";
+			TooltipCitations.Text = $"Atıf Sayısı: {paper.InCitationCount}";
+			TooltipReferences.Text = $"Referans Sayısı: {paper.ReferencedWorks.Count}";
+			TooltipId.Text = $"ID: {paper.Id}";
+
+			var mousePos = Mouse.GetPosition(GraphHost);
+			
+			double tooltipWidth = 300;
+			double tooltipHeight = 200;
+			
+			double left = mousePos.X + 15;
+			double top = mousePos.Y + 15;
+			
+			if (left + tooltipWidth > GraphHost.ActualWidth)
+				left = mousePos.X - tooltipWidth - 15;
+			
+			if (top + tooltipHeight > GraphHost.ActualHeight)
+				top = mousePos.Y - tooltipHeight - 15;
+			
+			Canvas.SetLeft(NodeTooltip, Math.Max(10, left));
+			Canvas.SetTop(NodeTooltip, Math.Max(10, top));
+			
+			NodeTooltip.Visibility = Visibility.Visible;
+		}
+
 		private void SwitchMode(int mode)
 		{
 			currentMode = mode;
@@ -99,7 +158,7 @@ namespace Article_Graph_Analysis_Application.Views
 					HeaderText.Text = "Graf - 200 Makale (F1-F2-F3-F4: Seviyeler) / (F5: Yenile)";
 					break;
 				case 3:
-					displayGraph = mainGraph;
+					displayGraph = GraphBuilder.BuildFilteredGraph(allPapers, 1000);
 					HeaderText.Text = "Graf - Tüm Makaleler (F1-F2-F3-F4: Seviyeler) / (F5: Yenile)";
 					break;
 				case 4:
@@ -118,6 +177,7 @@ namespace Article_Graph_Analysis_Application.Views
 				viewer = new GraphViewer();
 				viewer.BindToPanel(GraphHost);
 				viewer.MouseDown += Viewer_MouseDown;
+				viewer.MouseMove += Viewer_MouseMove;
 
 				graphController = new MsaglGraphController(viewer);
 				graphExpander = new GraphExpander(mainGraph, displayGraph);
@@ -128,6 +188,7 @@ namespace Article_Graph_Analysis_Application.Views
 
 				HIndexPanel.Visibility = Visibility.Collapsed;
 				BetweennessPanel.Visibility = Visibility.Collapsed;
+				NodeTooltip.Visibility = Visibility.Collapsed;
 
 				StatusText.Text = $"Mod {mode} aktif - {displayGraph.GetTotalNodes()} düğüm gösteriliyor";
 			}
@@ -178,9 +239,28 @@ namespace Article_Graph_Analysis_Application.Views
 			HIndexResultText.Text += $"H-Core Boyutu: {hIndexResult.HCore.Count}";
 			HIndexPanel.Visibility = Visibility.Visible;
 
-			if (hIndexResult.HCore.Count > 0 && graphController != null)
+			if (hIndexResult.HCore.Count > 0 && graphExpander != null && graphController != null)
 			{
-				graphController.HighlightHCore(hIndexResult.HCore, nodeId);
+				try
+				{
+					graphExpander.ExpandWithHCore(hIndexResult.HCore);
+
+					if (displayGraph.GetTotalNodes() > 1000)
+					{
+						MessageBox.Show($"Graf çok büyüdü ({displayGraph.GetTotalNodes()} düğüm)!\nMSAGL render edemeyebilir.\n\nF1/F2/F3 ile baştan başlayın.",
+							"Uyarı", MessageBoxButton.OK, MessageBoxImage.Warning);
+						return;
+					}
+
+					graphController.DrawGraph(displayGraph);
+					graphController.HighlightHCore(hIndexResult.HCore, nodeId);
+					UpdateStatistics();
+				}
+				catch (Exception ex)
+				{
+					MessageBox.Show($"Graf çizim hatası!\n\n{ex.Message}\n\nF5'e basarak yenileyin.",
+						"Hata", MessageBoxButton.OK, MessageBoxImage.Error);
+				}
 			}
 
 			StatusText.Text = $"H-Core gösterildi: {nodeId} - H-Index: {hIndexResult.HIndex}";

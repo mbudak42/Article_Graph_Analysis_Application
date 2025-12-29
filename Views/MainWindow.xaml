@@ -9,6 +9,12 @@
 		KeyDown="Window_KeyDown">
 
 	<Window.Resources>
+		<!-- Shadow Effect -->
+		<DropShadowEffect x:Key="DropShadow" 
+						  BlurRadius="10" 
+						  ShadowDepth="3" 
+						  Opacity="0.3"/>
+		
 		<Style x:Key="ModernButton"
 			   TargetType="Button">
 			<Setter Property="Background"
@@ -116,7 +122,56 @@
 					Margin="10"
 					ClipToBounds="True">
 				<Grid x:Name="GraphHost"
-					  ClipToBounds="True"/>
+					  ClipToBounds="True">
+					
+					<!-- TOOLTIP -->
+					<Border x:Name="NodeTooltip"
+							Background="White"
+							BorderBrush="#1565C0"
+							BorderThickness="2"
+							CornerRadius="6"
+							Padding="15"
+							MaxWidth="300"
+							Visibility="Collapsed"
+							Panel.ZIndex="1000"
+							Effect="{StaticResource DropShadow}">
+						<StackPanel>
+							<TextBlock x:Name="TooltipTitle"
+									   FontWeight="Bold"
+									   FontSize="13"
+									   TextWrapping="Wrap"
+									   Margin="0,0,0,10"
+									   Foreground="#1565C0"/>
+							
+							<TextBlock x:Name="TooltipAuthors"
+									   FontSize="11"
+									   TextWrapping="Wrap"
+									   Margin="0,0,0,8"
+									   Foreground="#424242"/>
+							
+							<StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+								<TextBlock Text="📅 " FontSize="11"/>
+								<TextBlock x:Name="TooltipYear" FontSize="11"/>
+							</StackPanel>
+							
+							<StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+								<TextBlock Text="📊 " FontSize="11"/>
+								<TextBlock x:Name="TooltipCitations" FontSize="11"/>
+							</StackPanel>
+							
+							<StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+								<TextBlock Text="📚 " FontSize="11"/>
+								<TextBlock x:Name="TooltipReferences" FontSize="11"/>
+							</StackPanel>
+							
+							<TextBlock x:Name="TooltipId"
+									   FontSize="10"
+									   Foreground="#757575"
+									   Margin="0,8,0,0"/>
+						</StackPanel>
+					</Border>
+					
+				</Grid>
 			</Border>
 
 			<ScrollViewer Grid.Column="1"
@@ -159,7 +214,10 @@
 									   TextWrapping="Wrap"/>
 							<TextBlock Text="• Mouse Tekerleri: Zoom"
 									   Margin="0,3"/>
-							<TextBlock Text="• Sağ Tık Düğme: Detay"
+							<TextBlock Text="• Düğüme Gel: Detay Göster"
+									   Margin="0,3"
+									   TextWrapping="Wrap"/>
+							<TextBlock Text="• Düğüme Tık: H-Core Genişlet"
 									   Margin="0,3"
 									   TextWrapping="Wrap"/>
 						</StackPanel>

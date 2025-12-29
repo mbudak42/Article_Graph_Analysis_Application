@@ -9,14 +9,12 @@ namespace Article_Graph_Analysis_Application.Core
 			var graph = new Graph();
 			var paperIds = papers.Select(p => p.Id).ToHashSet();
 
-			// Önce tüm düğümleri ekle
 			foreach (var paper in papers)
 			{
 				var node = new GraphNode(paper);
 				graph.AddNode(node);
 			}
 
-			// Sadece mevcut makaleler arasındaki referansları ekle
 			foreach (var paper in papers)
 			{
 				var sourceNode = graph.GetNode(paper.Id);
@@ -24,7 +22,6 @@ namespace Article_Graph_Analysis_Application.Core
 				{
 					foreach (var refId in paper.ReferencedWorks)
 					{
-						// ÖNEMLI: Sadece papers listesinde olan referanslar
 						if (paperIds.Contains(refId))
 						{
 							var targetNode = graph.GetNode(refId);
@@ -40,39 +37,52 @@ namespace Article_Graph_Analysis_Application.Core
 
 			return graph;
 		}
+
 		public static Graph BuildFilteredGraph(List<Paper> papers, int maxPapers)
 		{
 			var sortedPapers = papers
 				.OrderByDescending(p => p.InCitationCount)
+				.ThenBy(p => p.Id)  // ← Deterministik sıralama
 				.Take(maxPapers)
 				.ToList();
 
 			var graph = new Graph();
 			var selectedIds = sortedPapers.Select(p => p.Id).ToHashSet();
 
-			// Sadece seçili makaleleri ekle
+			// Paper nesnelerini KOPYALA
+			var paperCopies = new Dictionary<string, Paper>();
 			foreach (var paper in sortedPapers)
 			{
-				var node = new GraphNode(paper);
+				var copy = new Paper
+				{
+					Id = paper.Id,
+					Title = paper.Title,
+					Year = paper.Year,
+					Authors = paper.Authors,
+					ReferencedWorks = paper.ReferencedWorks,
+					InCitationCount = paper.InCitationCount  // JSON'daki değeri koru
+				};
+				paperCopies[paper.Id] = copy;
+
+				var node = new GraphNode(copy);
 				graph.AddNode(node);
 			}
 
-			// Sadece ikisi de seçili olan referansları ekle
-			foreach (var paper in sortedPapers)
+			foreach (var paperId in selectedIds)
 			{
-				var sourceNode = graph.GetNode(paper.Id);
+				var paper = paperCopies[paperId];
+				var sourceNode = graph.GetNode(paperId);
+
 				if (sourceNode != null)
 				{
 					foreach (var refId in paper.ReferencedWorks)
 					{
-						// ÖNEMLI: Sadece seçili makaleler arasındaki referanslar
 						if (selectedIds.Contains(refId))
 						{
 							var targetNode = graph.GetNode(refId);
 							if (targetNode != null)
 							{
 								graph.AddEdge(sourceNode, targetNode);
-								targetNode.Paper.InCitationCount++;
 							}
 						}
 					}
