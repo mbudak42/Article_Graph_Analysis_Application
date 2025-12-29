@@ -14,75 +14,71 @@ namespace Article_Graph_Analysis_Application.Core.Centrality
 
             var nodesList = graph.Nodes.Values.ToList();
 
-            for (int i = 0; i < nodesList.Count; i++)
+            // Her düğüm için BFS
+            foreach (var source in nodesList)
             {
-                for (int j = i + 1; j < nodesList.Count; j++)
+                var stack = new Stack<GraphNode>();
+                var paths = new Dictionary<string, List<GraphNode>>();
+                var dist = new Dictionary<string, int>();
+                var sigma = new Dictionary<string, int>();
+                var delta = new Dictionary<string, double>();
+
+                foreach (var node in nodesList)
                 {
-                    var source = nodesList[i];
-                    var target = nodesList[j];
+                    paths[node.Id] = new List<GraphNode>();
+                    dist[node.Id] = -1;
+                    sigma[node.Id] = 0;
+                    delta[node.Id] = 0.0;
+                }
 
-                    var paths = FindAllShortestPaths(graph, source, target);
+                dist[source.Id] = 0;
+                sigma[source.Id] = 1;
 
-                    if (paths.Count > 0)
+                var queue = new Queue<GraphNode>();
+                queue.Enqueue(source);
+
+                // BFS
+                while (queue.Count > 0)
+                {
+                    var v = queue.Dequeue();
+                    stack.Push(v);
+
+                    foreach (var neighbor in GetNeighbors(v))
                     {
-                        foreach (var path in paths)
+                        // İlk kez bulundu
+                        if (dist[neighbor.Id] < 0)
                         {
-                            for (int k = 1; k < path.Count - 1; k++)
-                            {
-                                centrality[path[k].Id] += 1.0 / paths.Count;
-                            }
+                            queue.Enqueue(neighbor);
+                            dist[neighbor.Id] = dist[v.Id] + 1;
                         }
+
+                        // En kısa yol
+                        if (dist[neighbor.Id] == dist[v.Id] + 1)
+                        {
+                            sigma[neighbor.Id] += sigma[v.Id];
+                            paths[neighbor.Id].Add(v);
+                        }
+                    }
+                }
+
+                // Geri dönüş
+                while (stack.Count > 0)
+                {
+                    var w = stack.Pop();
+                    
+                    foreach (var v in paths[w.Id])
+                    {
+                        delta[v.Id] += (sigma[v.Id] / (double)sigma[w.Id]) * (1.0 + delta[w.Id]);
+                    }
+
+                    if (w.Id != source.Id)
+                    {
+                        centrality[w.Id] += delta[w.Id];
                     }
                 }
             }
 
             return centrality;
-        }
-
-        private static List<List<GraphNode>> FindAllShortestPaths(Graph graph, GraphNode source, GraphNode target)
-        {
-            var allPaths = new List<List<GraphNode>>();
-            var queue = new Queue<List<GraphNode>>();
-            queue.Enqueue(new List<GraphNode> { source });
-
-            int shortestLength = int.MaxValue;
-
-            while (queue.Count > 0)
-            {
-                var currentPath = queue.Dequeue();
-                var lastNode = currentPath[currentPath.Count - 1];
-
-                if (currentPath.Count > shortestLength)
-                {
-                    continue;
-                }
-
-                if (lastNode.Id == target.Id)
-                {
-                    if (currentPath.Count < shortestLength)
-                    {
-                        shortestLength = currentPath.Count;
-                        allPaths.Clear();
-                    }
-
-                    if (currentPath.Count == shortestLength)
-                    {
-                        allPaths.Add(new List<GraphNode>(currentPath));
-                    }
-                    continue;
-                }
-
-                foreach (var neighbor in GetNeighbors(lastNode))
-                {
-                    if (!currentPath.Contains(neighbor))
-                    {
-                        var newPath = new List<GraphNode>(currentPath) { neighbor };
-                        queue.Enqueue(newPath);
-                    }
-                }
-            }
-
-            return allPaths;
         }
 
         private static List<GraphNode> GetNeighbors(GraphNode node)

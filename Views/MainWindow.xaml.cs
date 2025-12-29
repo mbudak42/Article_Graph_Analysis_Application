@@ -360,7 +360,8 @@ namespace Article_Graph_Analysis_Application.Views
 
 			Task.Run(() =>
 			{
-				var centrality = BetweennessCentrality.Calculate(displayGraph);
+				var undirectedGraph = displayGraph.ConvertToUndirected();
+				var centrality = BetweennessCentrality.Calculate(undirectedGraph);
 
 				Dispatcher.Invoke(() =>
 				{
